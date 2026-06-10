@@ -1253,7 +1253,6 @@ function recordImport(rows) {
 }
 
 function recordExport(rows) {
-  // Group by PO number
   const byPO = {};
   rows.forEach(row => {
     const po = row['PO Number'] || row['External ID'];
@@ -1264,31 +1263,27 @@ function recordExport(rows) {
 
   const now = new Date().toLocaleString();
   for (const [po, { customer, rows }] of Object.entries(byPO)) {
-    // Compute total
+    // Use wholesale unit price × quantity, excluding OOS SKUs
+    const oosSet = new Set(oosSkus.map(o => o.sku));
     let total = 0;
     rows.forEach(row => {
-      const disc = getMSRPDiscount(row);
-      const qty = parseFloat(row['Quantity']) || 0;
-      if (disc) total += disc.msrp * qty;
-      else total += parseFloat(row['Amount']) || 0;
+      if (oosSet.has(row['Item'])) return; // skip OOS
+      const qty   = parseFloat(row['Quantity']) || 0;
+      const price = parseFloat(row['Unit Price']) || 0;
+      total += qty * price;
     });
 
-    const existing = reportEntries.find(e => e.poNumber === po);
-    if (existing) {
-      // Update existing record
-      existing.dateExported  = now;
-      existing.totalAmount   = total.toFixed(2);
-      existing.customer      = applyCustomerMapping(customer);
-    } else {
-      // Create new record — only on export
-      reportEntries.unshift({
-        poNumber:     po,
-        customer:     applyCustomerMapping(customer),
-        totalAmount:  total.toFixed(2),
-        dateImported: now,
-        dateExported: now,
-      });
-    }
+    // Find ALL existing entries with this PO number and remove them first
+    reportEntries = reportEntries.filter(e => e.poNumber !== po);
+
+    // Add single clean record
+    reportEntries.unshift({
+      poNumber:     po,
+      customer:     applyCustomerMapping(customer),
+      totalAmount:  total.toFixed(2),
+      dateImported: now,
+      dateExported: now,
+    });
   }
   saveReport();
   renderReport();
