@@ -2149,6 +2149,7 @@ async function parseAmritaPDF(file) {
   try {
     const d = await extractPDFWithClaude(file);
     log(`  Amrita: detected ${d.isUK ? 'UK' : 'US'}, PO ${d.poNumber}, ${d.lineItems.length} items`);
+    log(`  Ship To: ${d.shipToName} | ${d.shipToAddress1} | ${d.shipToCity}, ${d.shipToState} ${d.shipToZip} | ${d.shipToCountry}`);
     const customer = d.isUK ? 'Amrita Nutrition UK' : 'Amrita Nutrition US';
     const sourceFormat = d.isUK ? 'Amrita UK PDF' : 'Amrita US PDF';
     return d.lineItems.map((item, i) => ({
