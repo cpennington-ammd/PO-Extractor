@@ -1227,12 +1227,17 @@ async function loadStoredReport() {
     if (saved) {
       const rows = JSON.parse(saved);
       const dataRows = rows.slice(1).filter(r => r[0]);
+      const normalizeDate = d => {
+        if (!d) return '';
+        if (/^\d{4}-\d{2}-\d{2}T/.test(String(d))) return new Date(d).toLocaleString();
+        return d;
+      };
       reportEntries = dataRows.map(r => ({
         customer:     r[0] || '',
         poNumber:     r[1] || '',
         totalAmount:  r[2] || '',
-        dateImported: r[3] || '',
-        dateExported: r[4] || '',
+        dateImported: normalizeDate(r[3]),
+        dateExported: normalizeDate(r[4]),
       }));
     }
   } catch(e) { reportEntries = []; }
@@ -1244,17 +1249,22 @@ async function saveReport() {
 }
 
 function recordImport(rows) {
-  // Group extracted rows by PO number to get one entry per PO
+  // No-op — report entries are only created when the CSV is exported
+}
+
+function recordExport(rows) {
+  // Group by PO number
   const byPO = {};
   rows.forEach(row => {
     const po = row['PO Number'] || row['External ID'];
+    if (!po) return;
     if (!byPO[po]) byPO[po] = { customer: row['Customer'], rows: [] };
     byPO[po].rows.push(row);
   });
 
   const now = new Date().toLocaleString();
   for (const [po, { customer, rows }] of Object.entries(byPO)) {
-    // Compute MSRP-based total amount for this PO
+    // Compute total
     let total = 0;
     rows.forEach(row => {
       const disc = getMSRPDiscount(row);
@@ -1265,33 +1275,21 @@ function recordImport(rows) {
 
     const existing = reportEntries.find(e => e.poNumber === po);
     if (existing) {
-      // Update import date, reset export date
-      existing.dateImported = now;
-      existing.dateExported = '';
-      existing.totalAmount = total.toFixed(2);
-      existing.customer = applyCustomerMapping(customer);
+      // Update existing record
+      existing.dateExported  = now;
+      existing.totalAmount   = total.toFixed(2);
+      existing.customer      = applyCustomerMapping(customer);
     } else {
+      // Create new record — only on export
       reportEntries.unshift({
         poNumber:     po,
         customer:     applyCustomerMapping(customer),
         totalAmount:  total.toFixed(2),
         dateImported: now,
-        dateExported: '',
+        dateExported: now,
       });
     }
   }
-  saveReport();
-  renderReport();
-}
-
-function recordExport(rows) {
-  // Mark each PO in the current batch as exported
-  const pos = new Set(rows.map(r => r['PO Number'] || r['External ID']));
-  const now = new Date().toLocaleString();
-  pos.forEach(po => {
-    const entry = reportEntries.find(e => e.poNumber === po);
-    if (entry) entry.dateExported = now;
-  });
   saveReport();
   renderReport();
 }
@@ -2119,7 +2117,9 @@ Rules:
 - Do not include header rows, subtotals, or blank rows
 - unitPrice and amount must be numbers (not strings)
 - quantity must be a number
-- If a field is not found, use an empty string or 0`;
+- If a field is not found, use an empty string or 0
+- SKUs may be split across two lines in the PDF (e.g. "PP-MOCH-POW-\n20-AMMD") — always join them with a hyphen to form the complete SKU (e.g. "PP-MOCH-POW-20-AMMD"). Never drop hyphens when joining split SKUs
+- Use the "Supplier Code" column for SKUs if present, not the internal SKU column`;
 
   const response = await fetch('https://ammd-proxy.onrender.com/v1/messages', {
     method: 'POST',
