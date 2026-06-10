@@ -1,0 +1,2506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PO → NetSuite Extractor · Amy Myers MD</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #f5f6fa;
+    --surface: #ffffff;
+    --surface2: #f0f2f8;
+    --border: #e2e6f0;
+    --accent: #2563eb;
+    --accent-light: #eff6ff;
+    --accent2: #7c3aed;
+    --warn: #d97706;
+    --warn-light: #fffbeb;
+    --text: #1e293b;
+    --muted: #64748b;
+    --success: #059669;
+    --success-light: #ecfdf5;
+    --error: #dc2626;
+    --error-light: #fef2f2;
+    --step-inactive: #cbd5e1;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 40px;
+    display: flex; align-items: center; gap: 14px;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .logo-mark {
+    width: 38px; height: 38px;
+    background: var(--accent);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px; font-weight: 500;
+    color: #fff;
+  }
+  header h1 { font-size: 17px; font-weight: 700; color: var(--text); }
+  header p  { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .badge {
+    margin-left: auto;
+    background: var(--accent-light);
+    color: var(--accent);
+    border: 1px solid #bfdbfe;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 600;
+  }
+
+  /* ── Layout ── */
+  main { max-width: 900px; margin: 0 auto; padding: 36px 24px 80px; }
+
+  /* ── Step wrapper ── */
+  .steps { display: flex; flex-direction: column; gap: 16px; }
+
+  .step-card {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 16px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .step-card.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(37,99,235,0.08);
+  }
+  .step-card.complete {
+    border-color: var(--success);
+  }
+
+  .step-header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 18px 24px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .step-header:hover { background: var(--surface2); }
+
+  .step-number {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+    background: var(--surface2);
+    color: var(--muted);
+    border: 2px solid var(--border);
+    flex-shrink: 0;
+    transition: all 0.2s;
+  }
+  .step-card.active .step-number {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .step-card.complete .step-number {
+    background: var(--success);
+    color: #fff;
+    border-color: var(--success);
+  }
+
+  .step-title-group { flex: 1; }
+  .step-title {
+    font-size: 15px; font-weight: 700; color: var(--text);
+  }
+  .step-subtitle {
+    font-size: 12px; color: var(--muted); margin-top: 2px;
+  }
+  .step-subtitle .info-line {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px;
+  }
+  .step-subtitle .info-file {
+    color: var(--accent); font-family: 'DM Mono', monospace; font-weight: 500;
+  }
+  .step-subtitle .info-date { color: var(--muted); }
+  .step-subtitle .info-sep { color: var(--border); }
+  .step-subtitle .oos-pill {
+    display: inline-block;
+    background: #fee2e2; color: var(--error);
+    border-radius: 4px; padding: 1px 7px;
+    font-size: 10px; font-weight: 600;
+    font-family: 'DM Mono', monospace;
+  }
+  .step-status {
+    font-size: 11px; font-weight: 600;
+    padding: 3px 10px; border-radius: 20px;
+  }
+  .step-status.done {
+    background: var(--success-light); color: var(--success);
+  }
+  .step-status.pending {
+    background: var(--surface2); color: var(--muted);
+  }
+  .step-status.warn {
+    background: var(--warn-light); color: var(--warn);
+  }
+  .step-chevron {
+    color: var(--muted); font-size: 14px;
+    transition: transform 0.2s;
+  }
+  .step-card.open .step-chevron { transform: rotate(180deg); }
+
+  .step-body {
+    display: none;
+    padding: 0 24px 24px;
+    border-top: 1px solid var(--border);
+  }
+  .step-card.open .step-body { display: block; }
+  .step-body-inner { padding-top: 20px; }
+
+  /* ── Pricing step ── */
+  .pricing-upload-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .pricing-upload-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none; border-radius: 8px;
+    padding: 9px 18px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: opacity 0.15s;
+    position: relative; overflow: hidden;
+  }
+  .pricing-upload-btn:hover { opacity: 0.88; }
+  .pricing-upload-btn input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer;
+  }
+  .pricing-status {
+    font-size: 13px; color: var(--muted);
+  }
+  .pricing-status.loaded { color: var(--success); font-weight: 600; }
+  .pricing-meta {
+    margin-top: 10px;
+    font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted);
+    display: none;
+  }
+  .pricing-meta span.fname { color: var(--accent); }
+
+  /* ── Mapping table ── */
+  .section-label {
+    font-size: 12px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin: 20px 0 10px;
+  }
+  .mapping-table { width: 100%; border-collapse: collapse; }
+  .mapping-table th {
+    font-size: 11px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 0 0 8px; text-align: left; border-bottom: 1px solid var(--border);
+  }
+  .mapping-table td { padding: 6px 8px 6px 0; vertical-align: middle; }
+  .mapping-table td:last-child { width: 32px; }
+  .map-label {
+    display: inline-block;
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    color: var(--accent); background: var(--accent-light);
+    border: 1px solid #bfdbfe; border-radius: 5px;
+    padding: 3px 9px;
+  }
+  .map-input {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 10px;
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 12px;
+    width: 100%; transition: border-color 0.15s;
+  }
+  .map-input:focus { outline: none; border-color: var(--accent); }
+  .map-delete {
+    background: none; border: none; color: var(--muted);
+    cursor: pointer; font-size: 15px; padding: 3px;
+    transition: color 0.15s;
+  }
+  .map-delete:hover { color: var(--error); }
+  .map-add-row { display: flex; gap: 8px; margin-top: 12px; }
+  .map-add-input {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 10px;
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 12px;
+    flex: 1; transition: border-color 0.15s;
+  }
+  .map-add-input:focus { outline: none; border-color: var(--accent); }
+  .map-add-input::placeholder { color: var(--muted); }
+  .map-add-btn {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 14px;
+    font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+    color: var(--text); cursor: pointer; white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .map-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── OOS ── */
+  .oos-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; min-height: 10px; }
+  .oos-chip {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--error-light); border: 1px solid #fecaca;
+    border-radius: 8px; padding: 6px 12px;
+    font-size: 12px;
+  }
+  .oos-chip .oos-sku { color: var(--error); font-weight: 600; font-family: 'DM Mono', monospace; font-size: 11px; }
+  .oos-chip .oos-desc { color: var(--muted); font-size: 11px; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .oos-chip .oos-remove { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 0 2px; transition: color 0.15s; }
+  .oos-chip .oos-remove:hover { color: var(--error); }
+  .oos-empty { font-size: 12px; color: var(--muted); font-style: italic; }
+  .oos-add-row { display: flex; gap: 8px; align-items: center; }
+  .oos-select {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px;
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 12px;
+    cursor: pointer; transition: border-color 0.15s;
+  }
+  .oos-select:focus { outline: none; border-color: var(--error); }
+  .oos-add-btn {
+    background: var(--error-light); border: 1px solid #fecaca;
+    border-radius: 8px; padding: 8px 16px;
+    font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+    color: var(--error); cursor: pointer; white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .oos-add-btn:hover { background: #fee2e2; }
+
+  /* ── Drop zone ── */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px; padding: 40px;
+    text-align: center; cursor: pointer;
+    transition: all 0.2s; position: relative;
+    background: var(--surface2);
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent); background: var(--accent-light);
+  }
+  .drop-zone input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .drop-icon { font-size: 32px; margin-bottom: 10px; }
+  .drop-zone h2 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .drop-zone p { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+  .formats { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .fmt-tag {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 3px 10px;
+    font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted);
+  }
+  .file-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .file-chip {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 12px;
+    font-size: 13px; display: flex; align-items: center; gap: 8px;
+  }
+  .file-chip .ext {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    color: var(--accent); background: var(--accent-light);
+    padding: 2px 6px; border-radius: 4px;
+  }
+
+  /* ── Extract button ── */
+  .extract-btn {
+    width: 100%; padding: 16px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: 12px;
+    font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 700;
+    cursor: pointer; transition: opacity 0.2s;
+    margin-top: 8px;
+    box-shadow: 0 4px 14px rgba(37,99,235,0.25);
+  }
+  .extract-btn:hover { opacity: 0.9; }
+  .extract-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+  /* ── Results ── */
+  .results-section { margin-top: 24px; }
+  .results-header {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 16px;
+  }
+  .results-header h2 { font-size: 18px; font-weight: 700; }
+  .stat-pill {
+    background: var(--accent-light); color: var(--accent);
+    border: 1px solid #bfdbfe;
+    border-radius: 20px; padding: 3px 12px;
+    font-family: 'DM Mono', monospace; font-size: 12px;
+  }
+  .download-btn {
+    margin-left: auto; padding: 10px 22px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: 8px;
+    font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: opacity 0.2s;
+    box-shadow: 0 2px 8px rgba(37,99,235,0.2);
+  }
+  .download-btn:hover { opacity: 0.88; }
+  .download-btn:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; }
+
+  /* ── Discrepancy panel ── */
+  .disc-panel {
+    background: var(--warn-light); border: 1px solid #fde68a;
+    border-radius: 10px; padding: 18px 22px; margin-bottom: 16px;
+  }
+  .disc-panel-title { font-size: 13px; font-weight: 700; color: var(--warn); margin-bottom: 12px; }
+  .disc-format-group { margin-bottom: 18px; }
+  .disc-format-group:last-child { margin-bottom: 0; }
+  .disc-format-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .disc-format-label { font-size: 12px; font-weight: 700; color: var(--warn); text-transform: uppercase; letter-spacing: 0.5px; }
+  .override-btn {
+    background: none; border: 1px solid #fbbf24; color: var(--warn);
+    border-radius: 6px; padding: 3px 10px;
+    font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; margin-left: auto;
+  }
+  .override-btn:hover { background: #fef3c7; }
+  .override-btn.active { background: var(--success-light); border-color: var(--success); color: var(--success); }
+
+  /* ── Table ── */
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead { background: var(--surface2); }
+  th {
+    padding: 10px 14px; text-align: left;
+    font-weight: 700; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  td {
+    padding: 9px 14px; border-bottom: 1px solid var(--border);
+    font-family: 'DM Mono', monospace; font-size: 11px; vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  td.price-error { background: #fef2f2; color: var(--error); }
+
+  /* ── OOS warning panel ── */
+  .oos-warning-panel {
+    background: var(--error-light); border: 1px solid #fecaca;
+    border-radius: 10px; padding: 16px 20px; margin-bottom: 16px;
+  }
+  .oos-warning-title { font-size: 13px; font-weight: 700; color: var(--error); margin-bottom: 10px; }
+  .oos-warning-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  /* ── Log ── */
+  .log-section { margin-top: 20px; }
+  .log-toggle {
+    background: none; border: none; color: var(--muted);
+    font-family: 'Inter', sans-serif; font-size: 12px; cursor: pointer; padding: 0;
+  }
+  .log-toggle:hover { color: var(--text); }
+  #logBox {
+    display: none; margin-top: 10px;
+    background: #1e293b; color: #94a3b8;
+    border-radius: 8px; padding: 14px;
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    max-height: 200px; overflow-y: auto;
+    line-height: 1.6; white-space: pre-wrap;
+  }
+
+  /* ── Report ── */
+  .report-section {
+    margin-top: 32px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 14px;
+  }
+  .report-header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 18px 24px; border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .report-header h2 { font-size: 15px; font-weight: 700; }
+  .report-clear-btn {
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    padding: 4px 12px; font-family: 'Inter', sans-serif;
+    font-size: 11px; font-weight: 600; color: var(--muted);
+    cursor: pointer; margin-left: auto; transition: all 0.15s;
+  }
+  .report-clear-btn:hover { border-color: var(--error); color: var(--error); }
+  .report-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .report-table th {
+    padding: 10px 16px; text-align: left; font-weight: 700; font-size: 11px;
+    color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+    background: var(--surface2);
+  }
+  .report-table td {
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    font-family: 'DM Mono', monospace; font-size: 11px; vertical-align: middle;
+  }
+  .report-table tr:last-child td { border-bottom: none; }
+  .report-table tr:hover td { background: var(--surface2); }
+  .report-empty { padding: 28px; text-align: center; color: var(--muted); font-size: 13px; }
+  .date-imported { color: var(--accent); }
+  .date-exported { color: var(--success); font-weight: 600; }
+  .date-pending  { color: var(--muted); font-style: italic; }
+
+  /* ── OOS email modal ── */
+  .oos-email-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2000; padding: 24px;
+  }
+  .oos-email-modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 32px;
+    max-width: 600px; width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    max-height: 90vh; overflow-y: auto;
+  }
+  .oos-email-modal h2 { font-size: 16px; font-weight: 700; color: var(--error); margin-bottom: 6px; }
+  .oos-email-modal p.subtitle { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+  .oos-email-progress { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; margin-bottom: 14px; }
+  .oos-email-group-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .oos-email-body {
+    width: 100%; min-height: 200px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px;
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 12px;
+    line-height: 1.6; resize: vertical;
+  }
+  .oos-email-body:focus { outline: none; border-color: var(--accent); }
+  .oos-email-actions { display: flex; gap: 10px; margin-top: 16px; }
+  .oos-email-copy-btn {
+    flex: 1; padding: 10px 18px; background: var(--accent); color: #fff;
+    border: none; border-radius: 8px;
+    font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .oos-email-copy-btn:hover { opacity: 0.88; }
+  .oos-email-next-btn {
+    padding: 10px 18px; background: var(--surface2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .oos-email-next-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .oos-email-close-btn {
+    padding: 10px 18px; background: var(--success); color: #fff;
+    border: none; border-radius: 8px;
+    font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .oos-email-close-btn:hover { opacity: 0.88; }
+  /* Mode toggle */
+  .mode-toggle {
+    display: flex; gap: 0; margin-bottom: 16px;
+    border: 1px solid var(--border); border-radius: 8px;
+    overflow: hidden; width: fit-content;
+  }
+  .mode-btn {
+    padding: 8px 18px;
+    font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+    border: none; cursor: pointer; transition: all 0.15s;
+    background: var(--surface2); color: var(--muted);
+  }
+  .mode-btn.active { background: var(--accent); color: #fff; }
+  .mode-btn:first-child { border-right: 1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">PO</div>
+  <div>
+    <h1>PO → NetSuite Extractor</h1>
+    <p>Amy Myers MD · Vendor Purchase Order Processor</p>
+  </div>
+  <span class="badge">Pending Approval</span>
+</header>
+
+<main>
+  <div class="steps">
+
+    <!-- ── Step 1: Pricing Sheet ── -->
+    <div class="step-card" id="step1Card">
+      <div class="step-header" onclick="toggleStep('step1')">
+        <div class="step-number">1</div>
+        <div class="step-title-group">
+          <div class="step-title">Wholesale Pricing Sheet</div>
+          <div class="step-subtitle" id="step1Subtitle">Upload if the pricing sheet has changed since last session</div>
+        </div>
+        <span class="step-status pending" id="step1Status">Optional</span>
+        <span class="step-chevron">▾</span>
+      </div>
+      <div class="step-body" id="step1Body">
+        <div class="step-body-inner">
+          <div class="pricing-upload-row">
+            <label class="pricing-upload-btn">
+              📂 Upload Pricing CSV
+              <input type="file" id="pricingInput" accept=".csv">
+            </label>
+            <span class="pricing-status" id="pricingStatus">No pricing file loaded</span>
+          </div>
+          <div class="pricing-meta" id="pricingMeta">
+            <span class="fname" id="pricingFileName"></span>
+            <span style="margin:0 8px">·</span>
+            <span id="pricingUploadDate"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Step 2: Out of Stock ── -->
+    <div class="step-card" id="step2Card">
+      <div class="step-header" onclick="toggleStep('step2')">
+        <div class="step-number">2</div>
+        <div class="step-title-group">
+          <div class="step-title">Out of Stock Items</div>
+          <div class="step-subtitle" id="step2Subtitle">Mark SKUs that can't be fulfilled — they'll be removed from the export</div>
+        </div>
+        <span class="step-status pending" id="step2Status">Optional</span>
+        <span class="step-chevron">▾</span>
+      </div>
+      <div class="step-body" id="step2Body">
+        <div class="step-body-inner">
+          <div class="oos-chips" id="oosChips"></div>
+          <div class="oos-add-row">
+            <select class="oos-select" id="oosSelect">
+              <option value="">— Select a SKU to mark out of stock —</option>
+            </select>
+            <button class="oos-add-btn" onclick="addOOSFromSelect()">+ Mark Out of Stock</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Step 3: Upload POs ── -->
+    <div class="step-card" id="step3Card">
+      <div class="step-header" onclick="toggleStep('step3')">
+        <div class="step-number">3</div>
+        <div class="step-title-group">
+          <div class="step-title">Upload Purchase Orders</div>
+          <div class="step-subtitle">Drop one or more PO files — mix of formats OK</div>
+        </div>
+        <span class="step-status pending" id="step3Status">No files selected</span>
+        <span class="step-chevron">▾</span>
+      </div>
+      <div class="step-body" id="step3Body">
+        <div class="step-body-inner">
+          <div class="drop-zone" id="dropZone">
+            <input type="file" id="fileInput" multiple accept=".csv,.docx,.pdf,.xlsx">
+            <div class="drop-icon">📂</div>
+            <h2>Drop PO files here</h2>
+            <p>or click to browse</p>
+            <div class="formats">
+              <span class="fmt-tag">Fullscript/NP CSV</span>
+              <span class="fmt-tag">AAFES CSV</span>
+              <span class="fmt-tag">Amrita US/UK PDF</span>
+              <span class="fmt-tag">Healf XLSX</span>
+              <span class="fmt-tag">Shopify CSV</span>
+              <span class="fmt-tag">Amazon FBA Shipment XLSX</span>
+              <span class="fmt-tag">Amazon Transfer Order CSV</span>
+            </div>
+          </div>
+          <div class="file-list" id="fileList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Step 4: Extract ── -->
+    <div class="step-card active" id="step4Card">
+      <div class="step-header" onclick="toggleStep('step4')">
+        <div class="step-number" style="background:var(--accent);color:#fff;border-color:var(--accent)">4</div>
+        <div class="step-title-group">
+          <div class="step-title">Extract &amp; Download</div>
+          <div class="step-subtitle">Parse all uploaded POs and build the NetSuite import CSV</div>
+        </div>
+        <span class="step-status pending" id="step4Status">Ready</span>
+        <span class="step-chevron">▾</span>
+      </div>
+      <div class="step-body" id="step4Body">
+        <div class="step-body-inner">
+          <div class="mode-toggle">
+            <button class="mode-btn active" id="modeSalesBtn" onclick="setMode('sales')">Sales Order</button>
+            <button class="mode-btn" id="modeTransferBtn" onclick="setMode('transfer')">Transfer Order</button>
+          </div>
+          <button class="extract-btn" id="extractBtn" disabled>Extract &amp; Build NetSuite CSV</button>
+
+          <!-- Results -->
+          <div class="results-section" id="resultsSection" style="display:none">
+            <div class="results-header">
+              <h2>Extracted Line Items</h2>
+              <span class="stat-pill" id="rowCount">0 rows</span>
+              <button class="download-btn" id="downloadBtn" style="display:none">⬇ Download Sales Order CSV</button>
+              <button class="download-btn" id="downloadTransferBtn" style="display:none;background:var(--accent2)">⬇ Download Transfer Order CSV</button>
+            </div>
+            <div id="oosWarningPanel" style="display:none"></div>
+            <div id="discPanel" style="display:none"></div>
+            <div class="table-wrap">
+              <table>
+                <thead id="tableHead"></thead>
+                <tbody id="tableBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="log-section">
+            <button class="log-toggle" onclick="document.getElementById('logBox').style.display=document.getElementById('logBox').style.display==='none'?'block':'none'">▸ Show processing log</button>
+            <div id="logBox"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Import Report -->
+  <div class="report-section">
+    <div class="report-header">
+      <h2>📋 Import Report</h2>
+      <span class="stat-pill" id="reportCount">0 orders</span>
+      <button class="report-clear-btn" onclick="exportReport()">⬇ Export CSV</button>
+    </div>
+    <div id="reportBody"></div>
+  </div>
+
+  <!-- NetSuite Customer Name Mapping -->
+  <div class="report-section" style="margin-top:16px;">
+    <div class="report-header">
+      <h2>🔗 NetSuite Customer Name Mapping</h2>
+    </div>
+    <div style="padding:20px 24px;">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px;">Map tool customer names to exact NetSuite customer record names. Applied on every CSV export.</p>
+      <div style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+        <table class="mapping-table" style="margin:0;">
+          <thead style="position:sticky;top:0;background:var(--surface2);z-index:1;"><tr>
+            <th style="padding:10px 14px;">Tool name</th>
+            <th style="padding:10px 14px;">NetSuite name (exact)</th>
+            <th style="padding:10px 14px;"></th>
+          </tr></thead>
+          <tbody id="mappingRows"></tbody>
+        </table>
+      </div>
+      <div class="map-add-row" style="margin-top:12px;">
+        <input class="map-add-input" id="mapFromInput" placeholder="Tool name (e.g. AAFES)">
+        <input class="map-add-input" id="mapToInput" placeholder="NetSuite name (exact)">
+        <button class="map-add-btn" onclick="addMapping()">+ Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- OOS Email Modal -->
+  <div class="oos-email-backdrop" id="oosEmailBackdrop" style="display:none">
+    <div class="oos-email-modal">
+      <h2>⚠ Out of Stock Notification</h2>
+      <p class="subtitle" id="oosEmailSubtitle"></p>
+      <div class="oos-email-progress" id="oosEmailProgress"></div>
+      <div class="oos-email-group">
+        <div class="oos-email-group-label">Email to supplier</div>
+        <textarea class="oos-email-body" id="oosEmailBody" spellcheck="true"></textarea>
+      </div>
+      <div class="oos-email-actions">
+        <button class="oos-email-copy-btn" onclick="copyOOSEmail()">📋 Copy Email</button>
+        <button class="oos-email-next-btn" id="oosEmailNextBtn" onclick="nextOOSEmail()">Next SKU →</button>
+        <button class="oos-email-close-btn" id="oosEmailCloseBtn" onclick="closeOOSEmailModal()" style="display:none">Exit</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+
+// ─── Step accordion ───────────────────────────────────────────────
+function toggleStep(id) {
+  const card = document.getElementById(id + 'Card');
+  const body = document.getElementById(id + 'Body');
+  const isOpen = card.classList.contains('open');
+  // Close all
+  ['step1','step2','step3','step4'].forEach(s => {
+    document.getElementById(s+'Card').classList.remove('open');
+  });
+  // Open if was closed
+  if (!isOpen) card.classList.add('open');
+}
+
+function updateStep3Status() {
+  const status = document.getElementById('step3Status');
+  const card = document.getElementById('step3Card');
+  if (selectedFiles.length > 0) {
+    status.textContent = selectedFiles.length + ' file' + (selectedFiles.length > 1 ? 's' : '') + ' ready';
+    status.className = 'step-status done';
+    card.classList.add('complete');
+    // Auto-open step 4
+    document.getElementById('step4Card').classList.add('open');
+  } else {
+    status.textContent = 'No files selected';
+    status.className = 'step-status pending';
+    card.classList.remove('complete');
+  }
+}
+
+function updateStep1Status(loaded) {
+  const status   = document.getElementById('step1Status');
+  const subtitle = document.getElementById('step1Subtitle');
+  const card     = document.getElementById('step1Card');
+  if (loaded) {
+    status.textContent  = 'Loaded';
+    status.className    = 'step-status done';
+    card.classList.add('complete');
+    // Show file name + upload date in subtitle
+    try {
+      const meta = JSON.parse(localStorage.getItem('ammd_pricing_meta'));
+      if (meta) {
+        subtitle.innerHTML = `<span class="info-line">
+          <span class="info-file">📄 ${meta.fileName}</span>
+          <span class="info-sep">·</span>
+          <span class="info-date">Uploaded ${meta.uploadDate}</span>
+        </span>`;
+      }
+    } catch(e) {}
+  }
+}
+
+function updateStep2Status() {
+  const status   = document.getElementById('step2Status');
+  const subtitle = document.getElementById('step2Subtitle');
+  const card     = document.getElementById('step2Card');
+  if (oosSkus.length > 0) {
+    status.textContent = oosSkus.length + ' OOS';
+    status.className   = 'step-status warn';
+    card.classList.add('complete');
+    // Show each OOS SKU as a pill in the subtitle
+    const pills = oosSkus.map(o => {
+      const desc = (skuDescriptions[o.sku] && skuDescriptions[o.sku] !== o.sku)
+        ? skuDescriptions[o.sku] : o.description;
+      const label = desc && desc !== o.sku ? `${o.sku} · ${desc}` : o.sku;
+      return `<span class="oos-pill">${label}</span>`;
+    }).join(' ');
+    subtitle.innerHTML = pills;
+  } else {
+    status.textContent  = 'Optional';
+    status.className    = 'step-status pending';
+    card.classList.remove('complete');
+    subtitle.textContent = "Mark SKUs that can't be fulfilled — they'll be removed from the export";
+  }
+}
+
+// ─── NetSuite CSV columns ─────────────────────────────────────────
+const NS_HEADERS = [
+  'External ID','Line ID','Customer','PO Number','PO Date','Ship Date',
+  'Order Status',
+  'Discount Item','Discount Amount',
+  'Item','Item Description','Quantity','Unit','Unit Price','Amount',
+  'MSRP','Discount $','Discount %',
+  'Ship To Name','Ship To Address 1','Ship To Address 2','Ship To City','Ship To State','Ship To Zip','Ship To Country',
+  'Source File','Source Format'
+];
+
+const ORDER_STATUS = 'Pending Approval';
+
+// ─── Export mode ─────────────────────────────────────────────────
+let exportMode = 'sales'; // 'sales' | 'transfer'
+
+function setMode(mode) {
+  exportMode = mode;
+  document.getElementById('modeSalesBtn').classList.toggle('active', mode === 'sales');
+  document.getElementById('modeTransferBtn').classList.toggle('active', mode === 'transfer');
+  const label = document.getElementById('extractBtn');
+  label.textContent = mode === 'transfer'
+    ? 'Extract & Build Transfer Order CSV'
+    : 'Extract & Build NetSuite CSV';
+}
+
+// ─── Transfer Order CSV columns ───────────────────────────────────
+const NS_TO_HEADERS = [
+  'External ID','Date','Status','Subsidiary','Memo',
+  'From Location','To Location','Department',
+  'Item','Item Description','Quantity','Lot Quantity','Lot Code','Shipment ID','Detail External ID',
+  'Source File','Source Format'
+];
+
+const TO_DEFAULTS = {
+  'Status':        'Pending Approval',
+  'Subsidiary':    'AMMD',
+  'Memo':          'Amazon inventory transfer for shipment',
+  'From Location': '1Main Warehouse',
+  'To Location':   'Amazon',
+  'Department':    'Product Ops',
+};
+
+// ─── Format → pricing column map ─────────────────────────────────
+const FORMAT_TO_PRICE_COL = {
+  'Fullscript/Natural Partners CSV': 'Fullscript/Natural Partners Price',
+  'AAFES CSV':                       'Rithum/AAFES Price',
+  'Amrita US PDF':                   'Amrita US Price',
+  'Amrita UK PDF':                   'Amrita UK Price',
+  'Healf XLSX':                      'Healf Price',
+  'Shopify Orders Export':           'Shopify Price',
+  'Amazon FBA Shipment XLSX':        null,  // no pricing on shipment files
+};
+
+// ─── State ────────────────────────────────────────────────────────
+let selectedFiles = [];
+let extractedRows = [];
+let pricingData   = {};   // SKU → { colName: price }
+let pricingCols   = [];
+let overriddenFormats = new Set();
+
+// Persist pricing across page loads
+const STORAGE_KEY      = 'ammd_pricing_csv';
+const PRICING_META_KEY = 'ammd_pricing_meta';
+const MAPPING_KEY      = 'ammd_customer_mapping';
+const REPORT_KEY  = 'ammd_import_report';
+const OOS_KEY     = 'ammd_oos_skus';
+
+let reportEntries = [];
+let oosSkus = []; // [{ sku, description }]
+let skuDescriptions = {}; // sku → description, built from pricing + extracted rows
+
+// All storage init happens in initApp() below
+
+// ─── Customer name mapping ────────────────────────────────────────
+let customerMapping = { 'Healf': '294767 Healf' }; // default seed
+
+// ─── Logging ──────────────────────────────────────────────────────
+function log(msg) {
+  const box = document.getElementById('logBox');
+  box.textContent += msg + '\n';
+  box.scrollTop = box.scrollHeight;
+}
+
+// ─── File input ───────────────────────────────────────────────────
+// These are accessed after DOM ready via getElementById inside handlers
+function getDropZone()   { return document.getElementById('dropZone'); }
+function getFileInput()  { return document.getElementById('fileInput'); }
+function getExtractBtn() { return document.getElementById('extractBtn'); }
+
+window.addEventListener('load', () => {
+  const dropZone  = getDropZone();
+  const fileInput = getFileInput();
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('drag-over');
+    addFiles([...e.dataTransfer.files]);
+  });
+  fileInput.addEventListener('change', () => { addFiles([...fileInput.files]); });
+});
+
+function addFiles(files) {
+  files.forEach(f => { if (!selectedFiles.find(x => x.name === f.name)) selectedFiles.push(f); });
+  renderFileList();
+  document.getElementById('extractBtn').disabled = selectedFiles.length === 0;
+  updateStep3Status();
+}
+
+function renderFileList() {
+  document.getElementById('fileList').innerHTML = selectedFiles.map((f,i) => {
+    const ext = f.name.split('.').pop().toUpperCase();
+    return `<div class="file-chip">
+      <span class="ext">${ext}</span>
+      ${f.name}
+      <span style="cursor:pointer;color:var(--muted);margin-left:4px" onclick="removeFile(${i})">✕</span>
+    </div>`;
+  }).join('');
+}
+
+function removeFile(i) {
+  selectedFiles.splice(i,1);
+  renderFileList();
+  document.getElementById('extractBtn').disabled = selectedFiles.length === 0;
+  updateStep3Status();
+}
+
+// ─── Pricing CSV ──────────────────────────────────────────────────
+function wirePricingInput() {
+  const el = document.getElementById('pricingInput');
+  if (!el) return;
+  el.addEventListener('change', async function() {
+    const file = this.files[0];
+    if (!file) return;
+    const text = await file.text();
+    parsePricingCSV(text);
+    try { localStorage.setItem(STORAGE_KEY, text); } catch(e) {}
+    const meta = { fileName: file.name, uploadDate: new Date().toLocaleString() };
+    try { localStorage.setItem(PRICING_META_KEY, JSON.stringify(meta)); } catch(e) {}
+    renderPricingMeta(meta);
+  });
+}
+
+function renderPricingMeta(meta) {
+  if (!meta) return;
+  const el = document.getElementById('pricingMeta');
+  if (!el) return;
+  document.getElementById('pricingFileName').textContent = meta.fileName;
+  document.getElementById('pricingUploadDate').textContent = 'Uploaded ' + meta.uploadDate;
+  el.style.display = 'block';
+}
+
+async function loadStoredPricing() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) parsePricingCSV(saved, true);
+  } catch(e) {}
+  try {
+    const meta = JSON.parse(localStorage.getItem(PRICING_META_KEY));
+    if (meta) renderPricingMeta(meta);
+  } catch(e) {}
+}
+
+function parsePricingCSV(text, fromStorage=false) {
+  const lines = text.split('\n').map(l => l.replace(/\r/g,''));
+  const parseRow = line => {
+    const cols=[]; let cur=''; let inQ=false;
+    for (const c of line) {
+      if (c==='"'){inQ=!inQ;}
+      else if (c===','&&!inQ){cols.push(cur.trim());cur='';}
+      else cur+=c;
+    }
+    cols.push(cur.trim());
+    return cols;
+  };
+
+  // Find the header row — look for the row containing 'SKU'
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(lines.length, 5); i++) {
+    if (lines[i].includes('SKU')) { headerIdx = i; break; }
+  }
+  if (headerIdx < 0) return;
+
+  const headers = parseRow(lines[headerIdx]);
+  const skuCol  = headers.findIndex(h => h.trim() === 'SKU');
+  const descCol = headers.findIndex(h => h.trim() === 'Description');
+  const msrpCol = headers.findIndex(h => h.trim() === 'MSRP');
+
+  // Price columns = customer price columns only (exclude SKU, Description, MSRP)
+  pricingCols = headers
+    .map((h, i) => ({ h: h.trim(), i }))
+    .filter(({ h, i }) => h && i !== skuCol && i !== descCol && h !== 'MSRP')
+    .map(({ h }) => h);
+
+  pricingData = {};
+
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const row = parseRow(lines[i]);
+    const sku = (row[skuCol] || '').trim().replace(/[$,]/g,'');
+    if (!sku) continue;
+    const desc = descCol >= 0 ? (row[descCol] || '').trim() : '';
+
+    pricingData[sku] = {};
+    headers.forEach((col, j) => {
+      if (j === skuCol || j === descCol || !col.trim()) return;
+      const val = parseFloat((row[j] || '').replace(/[$,]/g,''));
+      if (!isNaN(val)) pricingData[sku][col.trim()] = val;
+    });
+
+    // Use description from pricing sheet as the authoritative description
+    skuDescriptions[sku] = desc || sku;
+  }
+
+  const status = document.getElementById('pricingStatus');
+  if (status) {
+    status.textContent = `✓ ${Object.keys(pricingData).length} SKUs loaded${fromStorage?' (saved)':''}`;
+    status.className = 'pricing-status loaded';
+  }
+  log(`Pricing loaded: ${Object.keys(pricingData).length} SKUs, columns: ${pricingCols.join(', ')}`);
+  refreshOOSSelects();
+  updateStep1Status(true);
+}
+
+function checkPricing(row) {
+  const fmt = row['Source Format'];
+  const priceCol = FORMAT_TO_PRICE_COL[fmt];
+  if (!priceCol || !Object.keys(pricingData).length) return null;
+  const sku = row['Item'];
+  const unitPrice = parseFloat(row['Unit Price']);
+  if (!sku || isNaN(unitPrice)) return null;
+  const skuData = pricingData[sku];
+  if (!skuData) return null;
+  const expected = skuData[priceCol];
+  if (expected === undefined) return null;
+  if (Math.abs(unitPrice - expected) > 0.005) {
+    return { expected, actual: unitPrice, col: priceCol };
+  }
+  return null;
+}
+
+function getMSRPDiscount(row) {
+  const sku = row['Item'];
+  const unitPrice = parseFloat(row['Unit Price']);
+  if (!sku || isNaN(unitPrice) || !Object.keys(pricingData).length) return null;
+  const skuData = pricingData[sku];
+  if (!skuData) return null;
+  // MSRP is the named column — find it explicitly
+  const msrp = skuData['MSRP'];
+  if (!msrp || msrp <= 0) return null;
+  const discountAmt = msrp - unitPrice;
+  const discountPct = (discountAmt / msrp) * 100;
+  return { msrp, discountAmt, discountPct };
+}
+
+
+function applyCustomerMapping(name) {
+  return customerMapping[name] || name;
+}
+
+async function loadStoredMapping() {
+  try {
+    const saved = localStorage.getItem(MAPPING_KEY);
+    if (saved) {
+      const stored = JSON.parse(saved);
+      customerMapping = Object.assign({ 'Healf': '294767 Healf' }, stored);
+      console.log('[AMMD] Customer mapping loaded:', customerMapping);
+    } else {
+      console.log('[AMMD] No saved customer mapping found, using defaults');
+    }
+  } catch(e) { console.warn('[AMMD] loadStoredMapping error:', e); }
+  renderMappingTable();
+}
+
+async function saveMapping() {
+  try {
+    localStorage.setItem(MAPPING_KEY, JSON.stringify(customerMapping));
+    console.log('[AMMD] Customer mapping saved:', customerMapping);
+  } catch(e) { console.warn('[AMMD] saveMapping error:', e); }
+}
+
+function renderMappingTable() {
+  const tbody = document.getElementById('mappingRows');
+  if (!tbody) return;
+  tbody.innerHTML = Object.entries(customerMapping).map(([from, to]) => {
+    const safeFrom = from.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return `
+    <tr>
+      <td><span class="map-label">${from}</span></td>
+      <td><input class="map-input" value="${to.replace(/"/g,'&quot;')}" onchange="updateMapping('${safeFrom}', this.value)"></td>
+      <td><button class="map-delete" onclick="deleteMapping('${safeFrom}')" title="Remove">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function updateMapping(from, to) {
+  customerMapping[from] = to;
+  saveMapping();
+}
+
+function deleteMapping(from) {
+  delete customerMapping[from];
+  saveMapping();
+  renderMappingTable();
+}
+
+function addMapping() {
+  const from = document.getElementById('mapFromInput').value.trim();
+  const to   = document.getElementById('mapToInput').value.trim();
+  if (!from || !to) return;
+  customerMapping[from] = to;
+  saveMapping();
+  renderMappingTable();
+  document.getElementById('mapFromInput').value = '';
+  document.getElementById('mapToInput').value = '';
+}
+
+// ─── Import/Export Report ─────────────────────────────────────────
+async function loadStoredReport() {
+  try {
+    const saved = localStorage.getItem(REPORT_KEY);
+    if (saved) reportEntries = JSON.parse(saved);
+  } catch(e) { reportEntries = []; }
+  renderReport();
+}
+
+async function saveReport() {
+  try { localStorage.setItem(REPORT_KEY, JSON.stringify(reportEntries)); } catch(e) {}
+}
+
+function recordImport(rows) {
+  // Group extracted rows by PO number to get one entry per PO
+  const byPO = {};
+  rows.forEach(row => {
+    const po = row['PO Number'] || row['External ID'];
+    if (!byPO[po]) byPO[po] = { customer: row['Customer'], rows: [] };
+    byPO[po].rows.push(row);
+  });
+
+  const now = new Date().toLocaleString();
+  for (const [po, { customer, rows }] of Object.entries(byPO)) {
+    // Compute MSRP-based total amount for this PO
+    let total = 0;
+    rows.forEach(row => {
+      const disc = getMSRPDiscount(row);
+      const qty = parseFloat(row['Quantity']) || 0;
+      if (disc) total += disc.msrp * qty;
+      else total += parseFloat(row['Amount']) || 0;
+    });
+
+    const existing = reportEntries.find(e => e.poNumber === po);
+    if (existing) {
+      // Update import date, reset export date
+      existing.dateImported = now;
+      existing.dateExported = '';
+      existing.totalAmount = total.toFixed(2);
+      existing.customer = applyCustomerMapping(customer);
+    } else {
+      reportEntries.unshift({
+        poNumber:     po,
+        customer:     applyCustomerMapping(customer),
+        totalAmount:  total.toFixed(2),
+        dateImported: now,
+        dateExported: '',
+      });
+    }
+  }
+  saveReport();
+  renderReport();
+}
+
+function recordExport(rows) {
+  // Mark each PO in the current batch as exported
+  const pos = new Set(rows.map(r => r['PO Number'] || r['External ID']));
+  const now = new Date().toLocaleString();
+  pos.forEach(po => {
+    const entry = reportEntries.find(e => e.poNumber === po);
+    if (entry) entry.dateExported = now;
+  });
+  saveReport();
+  renderReport();
+}
+
+function renderReport() {
+  const body = document.getElementById('reportBody');
+  const count = document.getElementById('reportCount');
+  if (!body) return;
+  count.textContent = `${reportEntries.length} order${reportEntries.length !== 1 ? 's' : ''}`;
+  if (reportEntries.length === 0) {
+    body.innerHTML = '<div class="report-empty">No imports recorded yet. Extract and download a PO to start tracking.</div>';
+    return;
+  }
+  body.innerHTML = `<table class="report-table">
+    <thead><tr>
+      <th>Company</th>
+      <th>PO Number</th>
+      <th>Total Amount</th>
+      <th>Date Imported</th>
+      <th>Date Exported</th>
+    </tr></thead>
+    <tbody>
+      ${reportEntries.map(e => `<tr>
+        <td>${e.customer}</td>
+        <td style="color:var(--accent2)">${e.poNumber}</td>
+        <td>$${Number(e.totalAmount).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+        <td class="date-imported">${e.dateImported || '—'}</td>
+        <td class="${e.dateExported ? 'date-exported' : 'date-pending'}">${e.dateExported || 'Pending export'}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+function exportReport() {
+  if (reportEntries.length === 0) { alert('No report data to export.'); return; }
+  const cols = ['Company','PO Number','Total Amount','Date Imported','Date Exported'];
+  const escape = v => `"${String(v||'').replace(/"/g,'""')}"`;
+  const csv = [
+    cols.map(escape).join(','),
+    ...reportEntries.map(e => [
+      e.customer, e.poNumber, e.totalAmount, e.dateImported, e.dateExported||''
+    ].map(escape).join(','))
+  ].join('\r\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `import_report_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+// Init report — called from initApp()
+
+// ─── Out of Stock SKUs ────────────────────────────────────────────
+async function loadStoredOOS() {
+  try {
+    const saved = localStorage.getItem(OOS_KEY);
+    if (saved) {
+      oosSkus = JSON.parse(saved);
+      oosSkus.forEach(o => { skuDescriptions[o.sku] = o.description; });
+    }
+  } catch(e) { oosSkus = []; }
+  renderOOSChips();
+  refreshOOSSelects();
+}
+
+async function saveOOS() {
+  try { localStorage.setItem(OOS_KEY, JSON.stringify(oosSkus)); } catch(e) {}
+}
+
+function addOOSSku(sku, description) {
+  if (!sku || oosSkus.find(o => o.sku === sku)) return;
+  oosSkus.push({ sku, description: description || sku });
+  saveOOS();
+  renderOOSChips();
+  refreshOOSSelects();
+  updateStep2Status();
+}
+
+function removeOOSSku(sku) {
+  oosSkus = oosSkus.filter(o => o.sku !== sku);
+  saveOOS();
+  renderOOSChips();
+  refreshOOSSelects();
+  updateStep2Status();
+}
+
+function renderOOSChips(containerId = 'oosChips') {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  if (oosSkus.length === 0) {
+    container.innerHTML = '<span class="oos-empty">No SKUs marked out of stock</span>';
+    return;
+  }
+  container.innerHTML = oosSkus.map(o => {
+    const desc = skuDescriptions[o.sku] && skuDescriptions[o.sku] !== o.sku
+      ? skuDescriptions[o.sku]
+      : (o.description && o.description !== o.sku ? o.description : '');
+    return `
+    <div class="oos-chip">
+      <span class="oos-sku">${o.sku}</span>
+      ${desc ? `<span class="oos-desc">${desc}</span>` : ''}
+      <button class="oos-remove" onclick="removeOOSSku('${o.sku}')" title="Remove">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function renderOOSModalChips() {
+  renderOOSChips('oosModalChips');
+}
+
+// Build SKU options for a <select> — excludes already-marked OOS skus
+function buildOOSOptions(selectEl) {
+  if (!selectEl) return;
+  const markedSkus = new Set(oosSkus.map(o => o.sku));
+  const available = Object.keys(skuDescriptions)
+    .filter(sku => !markedSkus.has(sku))
+    .sort();
+  if (available.length === 0) {
+    selectEl.innerHTML = '<option value="">— No SKUs available yet (upload a pricing sheet or PO first) —</option>';
+    return;
+  }
+  selectEl.innerHTML = '<option value="">— Select a SKU —</option>' +
+    available.map(sku => {
+      const desc = skuDescriptions[sku] || sku;
+      return `<option value="${sku}" data-desc="${desc}">${sku} — ${desc}</option>`;
+    }).join('');
+}
+
+function refreshOOSSelects() {
+  buildOOSOptions(document.getElementById('oosSelect'));
+  renderOOSChips('oosChips');
+}
+
+function addOOSFromSelect() {
+  const sel = document.getElementById('oosSelect');
+  const sku = sel.value;
+  const desc = sel.options[sel.selectedIndex]?.dataset?.desc || sku;
+  if (sku) addOOSSku(sku, desc);
+  sel.value = '';
+}
+
+function addOOSFromModal() {
+  // Modal removed — no-op kept for safety
+}
+
+// Render OOS warning panel in results (non-blocking)
+function renderOOSWarningPanel() {
+  const panel = document.getElementById('oosWarningPanel');
+  if (!panel) return;
+
+  // Find which extracted SKUs are out of stock
+  const oosSet = new Set(oosSkus.map(o => o.sku));
+  const affectedItems = [];
+  const seenSkus = new Set();
+  extractedRows.forEach(row => {
+    if (oosSet.has(row['Item']) && !seenSkus.has(row['Item'])) {
+      seenSkus.add(row['Item']);
+      affectedItems.push(oosSkus.find(o => o.sku === row['Item']));
+    }
+  });
+
+  if (affectedItems.length === 0 && oosSkus.length === 0) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  panel.style.display = 'block';
+  panel.className = 'oos-warning-panel';
+
+  if (affectedItems.length > 0) {
+    panel.innerHTML = `
+      <div class="oos-warning-title">⚠ ${affectedItems.length} out of stock SKU${affectedItems.length > 1 ? 's' : ''} found in this PO</div>
+      <div class="oos-warning-chips">
+        ${affectedItems.map(o => {
+          const desc = skuDescriptions[o.sku] && skuDescriptions[o.sku] !== o.sku
+            ? skuDescriptions[o.sku]
+            : (o.description && o.description !== o.sku ? o.description : '');
+          return `<div class="oos-chip">
+            <span class="oos-sku">${o.sku}</span>
+            ${desc ? `<span class="oos-desc">${desc}</span>` : ''}
+          </div>`;
+        }).join('')}
+      </div>`;
+  } else {
+    panel.innerHTML = `<div class="oos-warning-title" style="color:var(--accent)">✓ No out of stock items in this PO</div>`;
+  }
+}
+
+// ─── App init — wait for DOM + window.storage to be ready ────────
+async function initApp() {
+  // Wire up buttons FIRST before any async storage calls that could fail
+  document.getElementById('extractBtn').addEventListener('click', async () => {
+    const extractBtn = document.getElementById('extractBtn');
+    extractBtn.disabled = true;
+    extractBtn.textContent = 'Processing…';
+    document.getElementById('logBox').textContent = '';
+    document.getElementById('logBox').style.display = 'block';
+    extractedRows = [];
+    overriddenFormats.clear();
+
+    try {
+      await loadLibs();
+    } catch(e) {
+      log('ERROR loading libraries: ' + e.message);
+      extractBtn.disabled = false;
+      extractBtn.textContent = 'Extract & Build NetSuite CSV';
+      return;
+    }
+
+    for (const f of selectedFiles) {
+      log(`\n── Processing: ${f.name}`);
+      try {
+        const ext = f.name.split('.').pop().toLowerCase();
+        let rows = [];
+        if (ext === 'csv') {
+          const preview = await f.slice(0, 600).text();
+          if (preview.includes('Lineitem quantity') && preview.includes('Financial Status')) {
+            rows = await parseShopifyCSV(f);
+          } else if (preview.includes('po_number') && preview.includes('line_item_sku')) {
+            rows = await parseAAFESCSV(f);
+          } else if (preview.includes('Shipment ID') && preview.includes('Shipment name')) {
+            setMode('transfer');
+            rows = await parseAmazonTransferCSV(f);
+          } else {
+            rows = await parseFullscriptCSV(f);
+          }
+        } else if (ext === 'pdf') {
+          rows = await parseAmritaPDF(f);
+        } else if (ext === 'xlsx') {
+          const nameLower = f.name.toLowerCase();
+          if (nameLower.includes('amazon') || nameLower.includes('shipment') || nameLower.includes('fba')) {
+            rows = await parseAmazonFBAShipmentXLSX(f);
+          } else {
+            rows = await parseHealfXLSX(f);
+          }
+        }
+        rows.forEach(r => {
+          r['Order Status'] = ORDER_STATUS;
+          // SKU normalisation
+          if (r['Item'] === 'VITD-CAP-AMMD - 30CT' || r['Item'] === 'VITD-CAP-AMMD - 30ct') {
+            r['Item'] = 'VITD-CAP-30-AMMD';
+          }
+        });
+        log(`  → ${rows.length} line items extracted`);
+        extractedRows.push(...rows);
+      } catch(err) {
+        log(`  ERROR: ${err.message}\n${err.stack||''}`);
+      }
+    }
+
+    extractBtn.disabled = false;
+    extractBtn.textContent = 'Extract & Build NetSuite CSV';
+    try { recordImport(extractedRows); } catch(e) { log('Report error: '+e.message); }
+    extractedRows.forEach(r => {
+      if (r['Item'] && r['Item Description']) skuDescriptions[r['Item']] = r['Item Description'];
+    });
+    refreshOOSSelects();
+    renderResults();
+  });
+
+  document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
+  document.getElementById('downloadTransferBtn').addEventListener('click', downloadTransferOrder);
+  wirePricingInput();
+
+  // Load persisted data — each wrapped so one failure can't block the others
+  try { await loadStoredPricing(); } catch(e) { console.warn('loadStoredPricing failed:', e); }
+  try { await loadStoredMapping(); } catch(e) { console.warn('loadStoredMapping failed:', e); }
+  try { await loadStoredReport();  } catch(e) { console.warn('loadStoredReport failed:', e); }
+  try { await loadStoredOOS();     } catch(e) { console.warn('loadStoredOOS failed:', e); }
+
+  // Re-render mapping table now that full DOM is ready
+  renderMappingTable();
+
+  // Open step 3 (upload POs) by default
+  document.getElementById('step3Card').classList.add('open');
+  updateStep2Status();
+}
+
+window.addEventListener('load', initApp);
+
+// ─── Render results ───────────────────────────────────────────────
+function renderResults() {
+  const section = document.getElementById('resultsSection');
+  section.style.display = 'block';
+  // Show correct download button based on mode
+  document.getElementById('downloadBtn').style.display = exportMode === 'sales' ? 'inline-block' : 'none';
+  document.getElementById('downloadTransferBtn').style.display = exportMode === 'transfer' ? 'inline-block' : 'none';
+  document.getElementById('rowCount').textContent = `${extractedRows.length} rows`;
+  renderOOSWarningPanel();
+
+  // Pricing discrepancies
+  const discsByFormat = {};
+  extractedRows.forEach((row, idx) => {
+    const issue = checkPricing(row);
+    if (issue) {
+      const fmt = row['Source Format'];
+      if (!discsByFormat[fmt]) discsByFormat[fmt] = [];
+      discsByFormat[fmt].push({ idx, row, issue });
+    }
+  });
+
+  const discPanel = document.getElementById('discPanel');
+  const hasDiscs = Object.keys(discsByFormat).length > 0;
+
+  if (hasDiscs) {
+    let html = `<div class="disc-panel">
+      <div class="disc-panel-title">⚠ Pricing Discrepancies Found</div>`;
+
+    for (const [fmt, items] of Object.entries(discsByFormat)) {
+      const fmtId = 'fmt_' + Object.keys(discsByFormat).indexOf(fmt);
+      const isOverridden = overriddenFormats.has(fmt);
+      html += `<div class="disc-format-group">
+        <div class="disc-format-header">
+          <span class="disc-format-label">${fmt}</span>
+          <button class="override-btn ${isOverridden ? 'active' : ''}" id="override_${fmtId}" onclick="toggleOverride('${fmt}',this)">
+            ${isOverridden ? '✓ Overridden — use PO prices' : 'Accept PO prices as-is'}
+          </button>
+        </div>
+        <table style="width:100%;font-size:11px;font-family:'DM Mono',monospace;border-collapse:collapse;">
+          <thead><tr>
+            <th style="padding:4px 10px;color:var(--muted);text-align:left;border-bottom:1px solid rgba(255,179,71,0.15)">SKU</th>
+            <th style="padding:4px 10px;color:var(--muted);text-align:left;border-bottom:1px solid rgba(255,179,71,0.15)">Item</th>
+            <th style="padding:4px 10px;color:var(--muted);text-align:right;border-bottom:1px solid rgba(255,179,71,0.15)">MSRP</th>
+            <th style="padding:4px 10px;color:var(--muted);text-align:right;border-bottom:1px solid rgba(255,179,71,0.15)">PO Price</th>
+            <th style="padding:4px 10px;color:var(--muted);text-align:right;border-bottom:1px solid rgba(255,179,71,0.15)">Expected</th>
+            <th style="padding:4px 10px;color:var(--muted);text-align:right;border-bottom:1px solid rgba(255,179,71,0.15)">Discount</th>
+            <th style="padding:4px 10px;color:var(--muted);text-align:left;border-bottom:1px solid rgba(255,179,71,0.15)">Column</th>
+          </tr></thead><tbody>`;
+      items.forEach(({ row, issue }) => {
+        const disc = getMSRPDiscount(row);
+        html += `<tr>
+          <td style="padding:4px 10px">${row['Item']}</td>
+          <td style="padding:4px 10px;color:var(--text)">${(row['Item Description']||'').slice(0,40)}</td>
+          <td style="padding:4px 10px;text-align:right;color:var(--muted)">${disc ? '$'+disc.msrp.toFixed(2) : '—'}</td>
+          <td style="padding:4px 10px;text-align:right;color:var(--error)">$${Number(issue.actual).toFixed(2)}</td>
+          <td style="padding:4px 10px;text-align:right;color:var(--accent)">$${Number(issue.expected).toFixed(2)}</td>
+          <td style="padding:4px 10px;text-align:right;color:var(--accent)">${disc ? disc.discountPct.toFixed(1)+'%' : '—'}</td>
+          <td style="padding:4px 10px;color:var(--muted)">${issue.col}</td>
+        </tr>`;
+      });
+      html += `</tbody></table></div>`;
+    }
+
+    html += `<div class="disc-download-row">
+      <span class="disc-download-hint">Accept PO prices as-is for each format to enable download, or correct the discrepancies first.</span>
+    </div></div>`;
+    discPanel.innerHTML = html;
+    discPanel.style.display = 'block';
+  } else {
+    discPanel.style.display = 'none';
+  }
+
+  // Download button: blocked only by non-overridden non-Shopify discrepancies
+  refreshDownloadBtn(discsByFormat);
+
+  // Table — mirrors the download logic so preview matches CSV exactly
+  const PREVIEW_COLS = ['External ID','Line ID','Customer','PO Number','Order Status','Discount Item','Discount Amount','Item','Item Description','Quantity','Unit Price','Amount','MSRP','Discount $','Discount %','Source Format'];
+  const thead = document.getElementById('tableHead');
+  const tbody = document.getElementById('tableBody');
+  thead.innerHTML = '<tr>' + PREVIEW_COLS.map(c=>`<th>${c}</th>`).join('') + '</tr>';
+
+  // Group by order to compute per-order discount totals
+  const orderGroups = {};
+  extractedRows.forEach(row => {
+    const id = row['External ID'];
+    if (!orderGroups[id]) orderGroups[id] = [];
+    orderGroups[id].push(row);
+  });
+
+  // Compute discount total per order
+  const orderDiscounts = {};
+  for (const [extId, rows] of Object.entries(orderGroups)) {
+    let msrpTotal = 0, wholesaleTotal = 0, hasPricingData = false;
+    rows.forEach(row => {
+      const disc = getMSRPDiscount(row);
+      const qty = parseFloat(row['Quantity']) || 0;
+      const unitPrice = parseFloat(row['Unit Price']) || 0;
+      if (disc) { msrpTotal += disc.msrp * qty; wholesaleTotal += unitPrice * qty; hasPricingData = true; }
+    });
+    orderDiscounts[extId] = hasPricingData && msrpTotal > wholesaleTotal
+      ? (wholesaleTotal - msrpTotal).toFixed(2) : null;
+  }
+
+  // Track which orders have had their header row rendered
+  const firstRowSeen = new Set();
+
+  tbody.innerHTML = extractedRows.map(row => {
+    const disc = getMSRPDiscount(row);
+    const qty = parseFloat(row['Quantity']) || 0;
+    const msrpAmt = disc ? (disc.msrp * qty) : null;
+    const issue = checkPricing(row);
+    const isOverridden = overriddenFormats.has(row['Source Format']);
+    const extId = row['External ID'];
+    const isFirst = !firstRowSeen.has(extId);
+
+    let headerRow = '';
+    if (isFirst) {
+      firstRowSeen.add(extId);
+      const discountAmt = orderDiscounts[extId];
+      headerRow = `<tr style="background:rgba(74,158,255,0.05);font-style:italic">
+        <td>${extId}</td>
+        <td style="color:var(--muted)">—</td>
+        <td>${applyCustomerMapping(row['Customer'])}</td>
+        <td>${row['PO Number']||''}</td>
+        <td>${row['Order Status']||''}</td>
+        <td style="color:var(--accent)">${discountAmt ? 'Wholesale Price Adjustment' : ''}</td>
+        <td style="color:var(--accent)">${discountAmt || ''}</td>
+        <td colspan="9" style="color:var(--muted);font-size:10px">↑ order header row</td>
+      </tr>`;
+    }
+
+    const isOOS = oosSkus.some(o => o.sku === row['Item']);
+    const lineRow = '<tr' + (isOOS ? ' style="background:rgba(255,107,107,0.07)"' : '') + '>' + PREVIEW_COLS.map(c => {
+      if (c === 'Item') return `<td>${row[c]||''}${isOOS ? ' <span style="font-size:9px;color:var(--error);background:rgba(255,107,107,0.15);padding:1px 5px;border-radius:3px;margin-left:4px">OOS</span>' : ''}</td>`;
+      if (c === 'Discount Item')   return `<td></td>`;
+      if (c === 'Discount Amount') return `<td></td>`;
+      if (c === 'Amount')     return `<td>${msrpAmt !== null ? msrpAmt.toFixed(2) : (row['Amount']||'')}</td>`;
+      if (c === 'MSRP')       return `<td>${disc ? '$'+disc.msrp.toFixed(2) : ''}</td>`;
+      if (c === 'Discount $') return `<td style="color:var(--accent)">${disc ? '$'+disc.discountAmt.toFixed(2) : ''}</td>`;
+      if (c === 'Discount %') return `<td style="color:var(--accent)">${disc ? disc.discountPct.toFixed(1)+'%' : ''}</td>`;
+      const isPrice = c === 'Unit Price' && issue && !isOverridden;
+      return `<td class="${isPrice?'price-error':''}">${row[c]||''}</td>`;
+    }).join('') + '</tr>';
+
+    return headerRow + lineRow;
+  }).join('');
+}
+
+function toggleOverride(fmt, btn) {
+  if (overriddenFormats.has(fmt)) {
+    overriddenFormats.delete(fmt);
+    btn.textContent = 'Accept PO prices as-is';
+    btn.classList.remove('active');
+  } else {
+    overriddenFormats.add(fmt);
+    btn.textContent = '✓ Overridden — use PO prices';
+    btn.classList.add('active');
+  }
+  renderResults();
+}
+
+function refreshDownloadBtn(discsByFormat) {
+  if (exportMode === 'transfer') return; // transfer orders don't use pricing validation
+  const downloadBtn = document.getElementById('downloadBtn');
+  let blocked = false;
+  for (const [fmt, items] of Object.entries(discsByFormat)) {
+    if (items.length > 0 && !overriddenFormats.has(fmt)) { blocked = true; break; }
+  }
+  downloadBtn.disabled = blocked;
+  downloadBtn.title = blocked ? 'Resolve pricing discrepancies or override to enable download' : '';
+}
+
+// ─── OOS Email Modal ──────────────────────────────────────────────
+let oosEmailQueue = [];   // [{ sku, description, customer, poNumbers }]
+let oosEmailIndex = 0;
+let oosEmailResolve = null;
+
+function buildOOSEmailText(entry) {
+  const poList = entry.poNumbers.join(', ');
+  const productWord = oosEmailQueue.length > 1 ? 'these products' : 'this product';
+  return `Hi ${entry.customer},
+We regret to inform you that ${entry.description} (SKU ${entry.sku}) is temporarily out of stock. We have removed this product from PO(s) ${poList}. It will also be removed from the corresponding invoices.
+
+We expect ${productWord} to be back in stock in a few weeks.
+
+Thank you for your patience and your continued partnership. Please let us know if you have any questions.`;
+}
+
+function showOOSEmailModal(queue) {
+  return new Promise(resolve => {
+    oosEmailQueue = queue;
+    oosEmailIndex = 0;
+    oosEmailResolve = resolve;
+    renderOOSEmailStep();
+    document.getElementById('oosEmailBackdrop').style.display = 'flex';
+  });
+}
+
+function renderOOSEmailStep() {
+  const entry = oosEmailQueue[oosEmailIndex];
+  const total = oosEmailQueue.length;
+  const isLast = oosEmailIndex === total - 1;
+
+  document.getElementById('oosEmailSubtitle').textContent =
+    `${total} out of stock SKU${total > 1 ? 's' : ''} found in this export. Quantities set to 0.`;
+  document.getElementById('oosEmailProgress').textContent =
+    `SKU ${oosEmailIndex + 1} of ${total}: ${entry.sku}`;
+  document.getElementById('oosEmailBody').value = buildOOSEmailText(entry);
+
+  const nextBtn  = document.getElementById('oosEmailNextBtn');
+  const closeBtn = document.getElementById('oosEmailCloseBtn');
+  nextBtn.style.display  = isLast ? 'none'  : 'inline-block';
+  closeBtn.style.display = isLast ? 'inline-block' : 'none';
+}
+
+function copyOOSEmail() {
+  const body = document.getElementById('oosEmailBody');
+  navigator.clipboard.writeText(body.value).then(() => {
+    const btn = document.querySelector('.oos-email-copy-btn');
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  }).catch(() => {
+    body.select();
+    document.execCommand('copy');
+  });
+}
+
+function nextOOSEmail() {
+  oosEmailIndex++;
+  renderOOSEmailStep();
+}
+
+function closeOOSEmailModal() {
+  document.getElementById('oosEmailBackdrop').style.display = 'none';
+  if (oosEmailResolve) { oosEmailResolve(); oosEmailResolve = null; }
+}
+
+// Convert any date string to NetSuite's required M/D/YYYY format
+function toNetSuiteDate(raw) {
+  if (!raw) return '';
+  const s = String(raw).trim();
+  // Already M/D/YYYY or M/D/YY
+  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) return s;
+  // YYYY-MM-DD (ISO)
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${parseInt(iso[2])}/${parseInt(iso[3])}/${iso[1]}`;
+  // Try native Date parse for other formats (e.g. "June 2, 2026", "Tuesday, June 02, 2026")
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`;
+  return s; // return as-is if unparseable
+}
+
+// ─── Download CSV ─────────────────────────────────────────────────
+async function downloadCSV() {
+  const cols = NS_HEADERS;
+  const escape = v => `"${String(v||'').replace(/"/g,'""')}"`;
+
+  // Step 1: build mapped rows — exclude OOS lines entirely, recalculate amounts
+  const oosSet = new Set(oosSkus.map(o => o.sku));
+  const mappedRows = extractedRows
+    .filter(row => !oosSet.has(row['Item']))  // remove OOS lines
+    .map(row => {
+      const disc = getMSRPDiscount(row);
+      const qty = parseFloat(row['Quantity']) || 0;
+      const msrpAmt = disc ? (disc.msrp * qty) : (parseFloat(row['Amount']) || '');
+      return Object.assign({}, row, {
+        'Customer':    applyCustomerMapping(row['Customer']),
+        'PO Date':     toNetSuiteDate(row['PO Date']),
+        'Ship Date':   toNetSuiteDate(row['Ship Date']),
+        'Amount':      disc ? msrpAmt.toFixed(2) : (row['Amount'] || ''),
+        'MSRP':        disc ? disc.msrp.toFixed(2) : '',
+        'Discount $':  disc ? disc.discountAmt.toFixed(2) : '',
+        'Discount %':  disc ? disc.discountPct.toFixed(1)+'%' : '',
+      });
+    });
+
+  // Step 2: group by External ID to compute per-order discount totals
+  const orderGroups = {};
+  mappedRows.forEach(row => {
+    const id = row['External ID'];
+    if (!orderGroups[id]) orderGroups[id] = [];
+    orderGroups[id].push(row);
+  });
+
+  // Step 3: emit a header-only discount row first, then line items with discount fields blank
+  const finalRows = [];
+  for (const [extId, rows] of Object.entries(orderGroups)) {
+    let msrpTotal = 0, wholesaleTotal = 0, hasPricingData = false;
+    rows.forEach(row => {
+      const disc = getMSRPDiscount(row);
+      const qty = parseFloat(row['Quantity']) || 0;
+      const unitPrice = parseFloat(row['Unit Price']) || 0;
+      if (disc) {
+        msrpTotal += disc.msrp * qty;
+        wholesaleTotal += unitPrice * qty;
+        hasPricingData = true;
+      }
+    });
+
+    const discountAmt = hasPricingData && msrpTotal > wholesaleTotal
+      ? (wholesaleTotal - msrpTotal).toFixed(2)
+      : null;
+
+    const firstRow = rows[0];
+
+    // Header row: order-level fields + discount, no item fields
+    finalRows.push({
+      'External ID':       extId,
+      'Line ID':           '',
+      'Customer':          firstRow['Customer'],
+      'PO Number':         firstRow['PO Number'],
+      'PO Date':           toNetSuiteDate(firstRow['PO Date']),
+      'Ship Date':         toNetSuiteDate(firstRow['Ship Date']),
+      'Order Status':      ORDER_STATUS,
+      'Discount Item':     discountAmt ? 'Wholesale Price Adjustment' : '',
+      'Discount Amount':   discountAmt || '',
+      'Item':              '',
+      'Item Description':  '',
+      'Quantity':          '',
+      'Unit':              '',
+      'Unit Price':        '',
+      'Amount':            '',
+      'MSRP':              '',
+      'Discount $':        '',
+      'Discount %':        '',
+      'Ship To Name':      firstRow['Ship To Name'],
+      'Ship To Address 1': firstRow['Ship To Address 1'],
+      'Ship To Address 2': firstRow['Ship To Address 2'] || '',
+      'Ship To City':      firstRow['Ship To City'],
+      'Ship To State':     firstRow['Ship To State'],
+      'Ship To Zip':       firstRow['Ship To Zip'],
+      'Ship To Country':   firstRow['Ship To Country'],
+      'Source File':       firstRow['Source File'],
+      'Source Format':     firstRow['Source Format'],
+    });
+
+    // Line item rows: renumber Line IDs sequentially after OOS removal
+    rows.forEach((row, i) => {
+      finalRows.push(Object.assign({}, row, {
+        'Line ID':         i + 1,
+        'Discount Item':   '',
+        'Discount Amount': '',
+      }));
+    });
+  }
+
+  const csvContent = [
+    cols.map(escape).join(','),
+    ...finalRows.map(row => cols.map(c => escape(row[c]||'')).join(','))
+  ].join('\r\n');
+  const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
+  const a = document.createElement('a');
+  a.href = dataUri;
+  // Build filename: [customer] from [tool name]. [date].[PO numbers]
+  const customers = [...new Set(finalRows.map(r => r['Customer']).filter(Boolean))];
+  const poNumbers = [...new Set(finalRows.map(r => r['PO Number']).filter(Boolean))];
+  const dateStr   = new Date().toISOString().slice(0, 10);
+  const customerStr = customers.join(', ') || 'Unknown';
+  const poStr       = poNumbers.join('.') || 'noPO';
+  const fileName    = `${customerStr} from po_extractor. ${dateStr}.${poStr}.csv`
+    .replace(/[/\\?%*:|"<>]/g, '-'); // sanitize any invalid filename chars
+  a.download = fileName;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  recordExport(extractedRows);
+
+  // Build OOS email queue — one entry per affected SKU, grouped across all POs
+  const oosInExport = {};
+  extractedRows.forEach(row => {
+    if (!oosSet.has(row['Item'])) return;
+    const sku = row['Item'];
+    if (!oosInExport[sku]) {
+      oosInExport[sku] = {
+        sku,
+        description: skuDescriptions[sku] || row['Item Description'] || sku,
+        customer:    applyCustomerMapping(row['Customer']),
+        poNumbers:   new Set(),
+      };
+    }
+    if (row['PO Number']) oosInExport[sku].poNumbers.add(row['PO Number']);
+  });
+
+  const emailQueue = Object.values(oosInExport).map(e => ({
+    ...e, poNumbers: [...e.poNumbers]
+  }));
+
+  if (emailQueue.length > 0) {
+    await showOOSEmailModal(emailQueue);
+  }
+
+  log('CSV downloaded successfully!');
+}
+
+// ─── Parsers ──────────────────────────────────────────────────────
+
+// Fullscript / Natural Partners CSV (EDI column format)
+async function parseFullscriptCSV(file) {
+  const text = await file.text();
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+
+  // Parse a CSV line respecting quoted fields
+  const parseRow = line => {
+    const cols = []; let cur = ''; let inQ = false;
+    for (const c of line) {
+      if (c === '"') { inQ = !inQ; }
+      else if (c === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+      else cur += c;
+    }
+    cols.push(cur.trim());
+    return cols;
+  };
+
+  const headers = parseRow(lines[0]);
+  const h = name => headers.indexOf(name);
+
+  // Column indices
+  const iRecordType  = h('Record Type');
+  const iPoNumber    = h('PO Number');
+  const iPoDate      = h('PO Date');
+  const iShipDate    = h('Ship Dates');
+  const iLineNum     = h('PO Line #');
+  const iSKU         = h('Vendor Style');
+  const iDesc        = h('Product/Item Description');
+  const iQty         = h('Qty Ordered');
+  const iUnit        = h('Unit of Measure');
+  const iUnitPrice   = h('Unit Price');
+  const iShipName    = h('Ship To Name');
+  const iShipAddr    = h('Ship To Address 1');
+  const iShipAddr2   = h('Ship To Address 2');
+  const iShipCity    = h('Ship To City');
+  const iShipState   = h('Ship To State');
+  const iShipZip     = h('Ship to Zip');
+  const iShipCountry = h('Ship To Country');
+  const iCustomer    = h('Division #');
+
+  const rows = [];
+  let header = {};
+
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const cols = parseRow(lines[i]);
+    const rt = (cols[iRecordType] || '').trim();
+
+    if (rt === 'H') {
+      header = {
+        poNumber:    (cols[iPoNumber]    || '').trim(),
+        poDate:      (cols[iPoDate]      || '').trim(),
+        shipDate:    (cols[iShipDate]    || '').trim(),
+        shipName:    (cols[iShipName]    || '').trim(),
+        shipAddr:    (cols[iShipAddr]    || '').trim(),
+        shipAddr2:   (cols[iShipAddr2]   || '').trim(),
+        shipCity:    (cols[iShipCity]    || '').trim(),
+        shipState:   (cols[iShipState]   || '').trim(),
+        shipZip:     (cols[iShipZip]     || '').trim(),
+        shipCountry: (cols[iShipCountry] || 'US').trim(),
+        customer:    'Fullscript/Natural Partners',
+      };
+    } else if (rt === 'D') {
+      const sku      = (cols[iSKU]       || '').trim();
+      const desc     = (cols[iDesc]      || '').trim();
+      const qty      = parseFloat(cols[iQty]       || '0') || 0;
+      const unitPrice = parseFloat(cols[iUnitPrice] || '0') || 0;
+      const lineNum  = (cols[iLineNum]   || '').trim();
+      if (!sku || !qty) continue;
+      rows.push({
+        'External ID':       header.poNumber,
+        'Line ID':           lineNum || rows.length + 1,
+        'Customer':          header.customer,
+        'PO Number':         header.poNumber,
+        'PO Date':           header.poDate,
+        'Ship Date':         header.shipDate,
+        'Order Status':      ORDER_STATUS,
+        'Item':              sku,
+        'Item Description':  desc,
+        'Quantity':          qty,
+        'Unit':              (cols[iUnit] || 'EA').trim(),
+        'Unit Price':        unitPrice,
+        'Amount':            (qty * unitPrice).toFixed(2),
+        'Ship To Name':      header.shipName,
+        'Ship To Address 1': header.shipAddr,
+        'Ship To Address 2': header.shipAddr2 || '',
+        'Ship To City':      header.shipCity,
+        'Ship To State':     header.shipState,
+        'Ship To Zip':       header.shipZip,
+        'Ship To Country':   header.shipCountry,
+        'Source File':       file.name,
+        'Source Format':     'Fullscript/Natural Partners CSV'
+      });
+    }
+  }
+  return rows;
+}
+
+// ─── PDF parsing via Claude API ───────────────────────────────────
+// PDF.js cannot run in this sandboxed context (atob/worker blocked).
+// Instead we send the PDF as a base64 document to the Anthropic API
+// and ask Claude to extract the structured line items as JSON.
+
+async function extractPDFWithClaude(file) {
+  log(`  Sending ${file.name} to Claude API for extraction…`);
+  const ab = await file.arrayBuffer();
+  const bytes = new Uint8Array(ab);
+
+  // Safe base64 encoding for arbitrary binary data
+  // btoa(String.fromCharCode(...)) fails on large files due to stack limits
+  // and on bytes > 127 in some contexts. Use chunk-based approach instead.
+  let base64 = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    base64 += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  base64 = btoa(base64);
+
+  const prompt = `You are extracting purchase order data from a vendor PDF to import into NetSuite.
+
+Analyze this PDF and return ONLY a JSON object with this exact structure (no markdown, no explanation):
+{
+  "poNumber": "the PO number",
+  "poDate": "the order date as written",
+  "shipDate": "ship/delivery date if present, else empty string",
+  "customer": "the buying company name (who placed the order)",
+  "shipToName": "ship-to company name",
+  "shipToAddress1": "ship-to street address",
+  "shipToCity": "ship-to city",
+  "shipToState": "ship-to state/province, 2-letter if US",
+  "shipToZip": "ship-to postal code",
+  "shipToCountry": "2-letter ISO country code e.g. US or GB",
+  "isUK": true or false (true if the buyer/ship-to is in the United Kingdom),
+  "vendor": "the selling company (supplier) name",
+  "lineItems": [
+    {
+      "sku": "vendor SKU / item code",
+      "description": "product description",
+      "quantity": 0,
+      "unitPrice": 0.00,
+      "amount": 0.00
+    }
+  ]
+}
+
+Rules:
+- lineItems must only include actual product rows with a SKU and quantity > 0
+- Do not include header rows, subtotals, or blank rows
+- unitPrice and amount must be numbers (not strings)
+- quantity must be a number
+- If a field is not found, use an empty string or 0`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+          { type: 'text', text: prompt }
+        ]
+      }]
+    })
+  });
+
+  if (!response.ok) throw new Error(`API error ${response.status}: ${await response.text()}`);
+  const data = await response.json();
+  const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
+  const clean = text.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
+// Amrita PDF (US & UK detection)
+async function parseAmritaPDF(file) {
+  try {
+    const d = await extractPDFWithClaude(file);
+    log(`  Amrita: detected ${d.isUK ? 'UK' : 'US'}, PO ${d.poNumber}, ${d.lineItems.length} items`);
+    const customer = d.isUK ? 'Amrita Nutrition UK' : 'Amrita Nutrition US';
+    const sourceFormat = d.isUK ? 'Amrita UK PDF' : 'Amrita US PDF';
+    return d.lineItems.map((item, i) => ({
+      'External ID':       d.poNumber||'AMRITA',
+      'Line ID':           i+1,
+      'Customer':          customer,
+      'PO Number':         d.poNumber,
+      'PO Date':           d.poDate,
+      'Ship Date':         d.shipDate,
+      'Order Status':      ORDER_STATUS,
+      'Item':              item.sku,
+      'Item Description':  item.description,
+      'Quantity':          item.quantity,
+      'Unit':              'EA',
+      'Unit Price':        item.unitPrice,
+      'Amount':            item.amount,
+      'Ship To Name':      d.shipToName,
+      'Ship To Address 1': d.shipToAddress1,
+      'Ship To Address 2': d.shipToAddress2 || '',
+      'Ship To City':      d.shipToCity,
+      'Ship To State':     d.shipToState,
+      'Ship To Zip':       d.shipToZip,
+      'Ship To Country':   d.shipToCountry || (d.isUK ? 'GB' : 'US'),
+      'Source File':       file.name,
+      'Source Format':     sourceFormat
+    }));
+  } catch(e) {
+    log(`  Amrita PDF error: ${e.message}`);
+    return [];
+  }
+}
+
+// AAFES CSV (Rithum/DSCO drop-ship format)
+async function parseAAFESCSV(file) {
+  const text = await file.text();
+  const lines = text.split('\n').map(l => l.replace(/\r/g, ''));
+  if (lines.length < 2) return [];
+
+  const parseRow = line => {
+    const cols = []; let cur = ''; let inQ = false;
+    for (const c of line) {
+      if (c === '"') { inQ = !inQ; }
+      else if (c === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+      else cur += c;
+    }
+    cols.push(cur.trim());
+    return cols;
+  };
+
+  const headers = parseRow(lines[0]);
+  const h = name => headers.indexOf(name);
+
+  const iPoNumber    = h('po_number');
+  const iLineNum     = h('line_item_line_number');
+  const iSKU         = h('line_item_sku');
+  const iTitle       = h('line_item_title');
+  const iQty         = h('line_item_quantity');
+  const iCost        = h('line_item_expected_cost');
+  const iShipName    = h('ship_name');
+  const iShipAddr1   = h('ship_address_1');
+  const iShipAddr2   = h('ship_address_2');
+  const iShipCity    = h('ship_city');
+  const iShipRegion  = h('ship_region');
+  const iShipPostal  = h('ship_postal');
+  const iShipCountry = h('ship_country');
+  const iCreateDate  = h('retailer_create_date');
+  const iShipBy      = h('ship_by_date');
+
+  const rows = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const cols = parseRow(lines[i]);
+    const sku  = (cols[iSKU]  || '').trim();
+    const qty  = parseFloat(cols[iQty]  || '0') || 0;
+    const cost = parseFloat(cols[iCost] || '0') || 0;
+    if (!sku || !qty) continue;
+
+    const poNumber = (cols[iPoNumber] || '').trim();
+    const rawDate  = (cols[iCreateDate] || '').trim();
+    const poDate   = rawDate ? rawDate.split('T')[0] : '';
+    const shipDate = (cols[iShipBy] || '').trim().split('T')[0];
+
+    rows.push({
+      'External ID':       poNumber,
+      'Line ID':           (cols[iLineNum] || rows.length + 1),
+      'Customer':          'AAFES',
+      'PO Number':         poNumber,
+      'PO Date':           poDate,
+      'Ship Date':         shipDate,
+      'Order Status':      ORDER_STATUS,
+      'Item':              sku,
+      'Item Description':  (cols[iTitle] || sku).trim(),
+      'Quantity':          qty,
+      'Unit':              'EA',
+      'Unit Price':        cost,
+      'Amount':            (qty * cost).toFixed(2),
+      'Ship To Name':      (cols[iShipName]    || '').trim(),
+      'Ship To Address 1': (cols[iShipAddr1]   || '').trim(),
+      'Ship To Address 2': (cols[iShipAddr2]   || '').trim(),
+      'Ship To City':      (cols[iShipCity]    || '').trim(),
+      'Ship To State':     (cols[iShipRegion]  || '').trim(),
+      'Ship To Zip':       (cols[iShipPostal]  || '').trim(),
+      'Ship To Country':   (cols[iShipCountry] || 'US').trim(),
+      'Source File':       file.name,
+      'Source Format':     'AAFES CSV'
+    });
+  }
+  return rows;
+}
+
+// Healf XLSX
+async function parseHealfXLSX(file) {
+  const ab = await file.arrayBuffer();
+  const wb = XLSX.read(new Uint8Array(ab), { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+  let poNumber='', poDate='';
+  let headerRow=-1;
+  for (let i=0; i<Math.min(raw.length,15); i++) {
+    const row = raw[i];
+    const rowStr = row.join(' ');
+
+    // PO number: row where col[2]==="PO" and col[3] has the value (e.g. "PO-55828")
+    if (String(row[2]||'').trim() === 'PO' && row[3]) {
+      poNumber = String(row[3]).trim();
+    }
+
+    // Date: look for a cell containing a day-of-week + date string
+    for (const cell of row) {
+      const s = String(cell||'');
+      if (/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.test(s)) {
+        poDate = s.trim();
+      }
+    }
+
+    // Country: always US (collection order ships from AMMD warehouse)
+    if (/BARCODE|DESCRIPTION|ORDER.?QTY/i.test(rowStr)) headerRow = i;
+  }
+
+  const dataStart = headerRow >= 0 ? headerRow+1 : 4;
+  const rows=[];
+  for (let r=dataStart; r<raw.length; r++) {
+    const row = raw[r];
+    const barcode = String(row[0]||'').trim();
+    if (!barcode || barcode==='TOTAL:') continue;
+    const qty = parseInt(row[3]);
+    if (!qty||qty===0) continue;
+    const up = parseFloat(String(row[4]||'').replace(/[$,]/g,''));
+    const amt = parseFloat(String(row[5]||'').replace(/[$,]/g,''));
+    rows.push({
+      'External ID':       poNumber||'HEALF',
+      'Line ID':           rows.length+1,
+      'Customer':          'Healf',
+      'PO Number':         poNumber,
+      'PO Date':           poDate,
+      'Ship Date':         '',
+      'Order Status':      ORDER_STATUS,
+      'Item':              String(row[2]||barcode).trim(),
+      'Item Description':  String(row[1]||'').trim(),
+      'Quantity':          qty,
+      'Unit':              'EA',
+      'Unit Price':        isNaN(up)?'':up,
+      'Amount':            isNaN(amt)?'':amt,
+      'Ship To Name':      'Healf - Collection Order',
+      'Ship To Address 1': '8816 CULLEN LN',
+      'Ship To Address 2': '',
+      'Ship To City':      'AUSTIN',
+      'Ship To State':     'TX',
+      'Ship To Zip':       '78748',
+      'Ship To Country':   'US',
+      'Source File':       file.name,
+      'Source Format':     'Healf XLSX'
+    });
+  }
+  return rows;
+}
+
+// Shopify Orders Export CSV
+async function parseShopifyCSV(file) {
+  const text = await file.text();
+  const lines = text.split('\n').filter(l=>l.trim());
+  if (lines.length<2) return [];
+
+  const parseRow = line => {
+    const cols=[]; let cur=''; let inQ=false;
+    for (const c of line) {
+      if (c==='"'){inQ=!inQ;}
+      else if (c===','&&!inQ){cols.push(cur.trim());cur='';}
+      else cur+=c;
+    }
+    cols.push(cur.trim());
+    return cols;
+  };
+
+  const headers = parseRow(lines[0]);
+  const h = k => headers.findIndex(x=>x===k);
+
+  const iName     = h('Name');
+  const iCreated  = h('Created at');
+  const iShipName = h('Shipping Name');
+  const iShipAddr = h('Shipping Address1');
+  const iShipAddr2 = h('Shipping Address2');
+  const iShipCity = h('Shipping City');
+  const iShipProv = h('Shipping Province');
+  const iShipZip  = h('Shipping Zip');
+  const iShipCntry = h('Shipping Country');
+  const iSKU      = h('Lineitem sku');
+  const iQty      = h('Lineitem quantity');
+  const iPrice    = h('Lineitem price');
+  const iItemName = h('Lineitem name');
+
+  const rows=[];
+  const orderContext={};
+
+  for (let i=1; i<lines.length; i++) {
+    const cols = parseRow(lines[i]);
+    const name = cols[iName];
+    if (name) {
+      orderContext.name     = name.replace(/^#/,'');
+      orderContext.created  = (cols[iCreated]||'').split(' ')[0];
+      orderContext.shipName = cols[iShipName]||'';
+      orderContext.shipAddr = cols[iShipAddr]||'';
+      orderContext.shipAddr2 = cols[iShipAddr2]||'';
+      orderContext.shipCity = cols[iShipCity]||'';
+      orderContext.shipProv = cols[iShipProv]||'';
+      orderContext.shipZip   = cols[iShipZip]||'';
+      orderContext.shipCntry = cols[iShipCntry]||'US';
+    }
+    const sku = cols[iSKU];
+    const qty = parseInt(cols[iQty]);
+    const price = parseFloat(cols[iPrice]);
+    if (!sku||!qty) continue;
+
+    rows.push({
+      'External ID':       `SHOPIFY-${orderContext.name}`,
+      'Line ID':           rows.length+1,
+      'Customer':          'Shopify',
+      'PO Number':         orderContext.name||'',
+      'PO Date':           orderContext.created||'',
+      'Ship Date':         '',
+      'Order Status':      ORDER_STATUS,
+      'Item':              sku,
+      'Item Description':  cols[iItemName]||sku,
+      'Quantity':          qty,
+      'Unit':              'EA',
+      'Unit Price':        isNaN(price)?'':price,
+      'Amount':            (!isNaN(price)&&qty)?price*qty:'',
+      'Ship To Name':      orderContext.shipName,
+      'Ship To Address 1': orderContext.shipAddr,
+      'Ship To Address 2': orderContext.shipAddr2 || '',
+      'Ship To City':      orderContext.shipCity,
+      'Ship To State':     orderContext.shipProv,
+      'Ship To Zip':       orderContext.shipZip,
+      'Ship To Country':   orderContext.shipCntry,
+      'Source File':       file.name,
+      'Source Format':     'Shopify Orders Export'
+    });
+  }
+  return rows;
+}
+
+// Amazon FBA Shipment XLSX
+async function parseAmazonFBAShipmentXLSX(file) {
+  const ab = await file.arrayBuffer();
+  const wb = XLSX.read(new Uint8Array(ab), { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const raw = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+
+  // PO number and date from filename
+  const fnClean = file.name.replace(/\.xlsx$/i,'').replace(/_/g,' ');
+  const dateM = fnClean.match(/(\d{1,2})\s+(\d{1,2})\s+(\d{2,4})/);
+  let poDate='', poNumber='Amazon ' + fnClean;
+  if (dateM) {
+    const [,m,d,y] = dateM;
+    const yr = y.length===2 ? '20'+y : y;
+    poDate = `${m}/${d}/${yr}`;
+  }
+
+  // Find header row
+  let headerRow=-1;
+  for (let i=0; i<Math.min(raw.length,10); i++) {
+    const s = raw[i].join(' ').toLowerCase();
+    if (s.includes('sku') || s.includes('asin') || s.includes('qty')) { headerRow=i; break; }
+  }
+  const dataStart = headerRow>=0 ? headerRow+2 : 7;
+
+  const rows=[];
+  for (let r=dataStart; r<raw.length; r++) {
+    const row=raw[r];
+    const sku = String(row[0]||'').trim();
+    if (!sku) continue;
+    const qty = parseInt(row[1]);
+    if (!qty||qty===0) continue;
+    rows.push({
+      'External ID':       poNumber.replace(/\s/g,'-'),
+      'Line ID':           rows.length+1,
+      'Customer':          'Amazon FBA',
+      'PO Number':         poNumber,
+      'PO Date':           poDate,
+      'Ship Date':         '',
+      'Order Status':      ORDER_STATUS,
+      'Item':              sku,
+      'Item Description':  sku,
+      'Quantity':          qty,
+      'Unit':              'EA',
+      'Unit Price':        '',
+      'Amount':            '',
+      'Ship To Name':      'Amazon FBA',
+      'Ship To Address 1': '',
+      'Ship To Address 2': '',
+      'Ship To City':      '',
+      'Ship To State':     '',
+      'Ship To Zip':       '',
+      'Ship To Country':   'US',
+      'Source File':       file.name,
+      'Source Format':     'Amazon FBA Shipment XLSX'
+    });
+  }
+  return rows;
+}
+
+// Amazon Transfer Order CSV (Packing List format)
+async function parseAmazonTransferCSV(file) {
+  const text = await file.text();
+  const lines = text.split('\n').map(l => l.replace(/\r/g, ''));
+
+  const parseRow = line => {
+    const cols = []; let cur = ''; let inQ = false;
+    for (const c of line) {
+      if (c === '"') { inQ = !inQ; }
+      else if (c === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+      else cur += c;
+    }
+    cols.push(cur.trim());
+    return cols;
+  };
+
+  // Extract shipment ID from header rows for External ID
+  let shipmentId = '';
+  let headerRow = -1;
+  for (let i = 0; i < Math.min(lines.length, 15); i++) {
+    const rowStr = lines[i];
+    // Match ",Shipment ID,FBA19D5R6Q3Z" or "Shipment ID,FBA19D5R6Q3Z"
+    const shipMatch = rowStr.match(/[,\s]?Shipment ID[,\s]+([A-Z0-9]+)/i);
+    if (shipMatch) shipmentId = shipMatch[1].trim();
+    if (/^Lot Code,SKU,Title/i.test(rowStr) || /,SKU,Title,ASIN/i.test(rowStr)) {
+      headerRow = i;
+    }
+  }
+
+  log(`  Amazon Transfer: shipmentId=${shipmentId}, headerRow=${headerRow}`);
+
+  if (headerRow < 0) {
+    log('  Could not find header row in Amazon Transfer CSV');
+    return [];
+  }
+
+  const headers = parseRow(lines[headerRow]);
+  const h = name => headers.findIndex(c => c.trim().toLowerCase() === name.toLowerCase());
+
+  const iSKU        = h('SKU');
+  const iTitle      = h('Title');
+  const iTotalUnits = h('Total units');
+  const iLotCode    = h('Lot Code');
+  log(`  Columns: SKU=${iSKU}, Title=${iTitle}, TotalUnits=${iTotalUnits}, LotCode=${iLotCode}`);
+
+  const rows = [];
+  for (let i = headerRow + 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const cols = parseRow(lines[i]);
+    const sku  = (cols[iSKU] || '').trim();
+    if (!sku) continue;
+    const qty  = parseInt(cols[iTotalUnits] || '0') || 0;
+    if (!qty) continue;
+
+    rows.push({
+      'External ID':      shipmentId || file.name.replace(/\.csv$/i, ''),
+      'Date':             toNetSuiteDate(new Date().toISOString().slice(0, 10)),
+      'Item':             sku,
+      'Item Description': (cols[iTitle] || sku).trim(),
+      'Quantity':         qty,
+      'Lot Code':         (cols[iLotCode] || '').trim(),
+      'Shipment ID':      shipmentId,
+      'Source File':      file.name,
+      'Source Format':    'Amazon Transfer Order CSV',
+      ...TO_DEFAULTS
+    });
+  }
+  log(`  Amazon Transfer: shipment ${shipmentId}, ${rows.length} SKUs`);
+  return rows;
+}
+
+// ─── Download Transfer Order CSV ──────────────────────────────────
+function downloadTransferOrder() {
+  if (!extractedRows.length) return;
+  const cols = NS_TO_HEADERS;
+  const escape = v => `"${String(v||'').replace(/"/g,'""')}"`;
+
+  // Group by External ID (shipment), emit one header row then line items
+  const orderGroups = {};
+  extractedRows.forEach(row => {
+    const id = row['External ID'] || 'TRANSFER';
+    if (!orderGroups[id]) orderGroups[id] = [];
+    orderGroups[id].push(row);
+  });
+
+  const finalRows = [];
+  for (const [extId, rows] of Object.entries(orderGroups)) {
+    const first = rows[0];
+    // Header row — order-level fields, no item fields
+    finalRows.push({
+      'External ID':      extId,
+      'Date':             toNetSuiteDate(new Date().toISOString().slice(0,10)),
+      'Status':           TO_DEFAULTS['Status'],
+      'Subsidiary':       TO_DEFAULTS['Subsidiary'],
+      'Memo':             TO_DEFAULTS['Memo'],
+      'From Location':    TO_DEFAULTS['From Location'],
+      'To Location':      TO_DEFAULTS['To Location'],
+      'Department':       TO_DEFAULTS['Department'],
+      'Item':             '',
+      'Item Description': '',
+      'Quantity':         '',
+      'Source File':      first['Source File'],
+      'Source Format':    first['Source Format'],
+    });
+    // Line item rows
+    let invDetailCounter = 1;
+    rows.forEach((row, i) => {
+      finalRows.push({
+        'External ID':                  extId,
+        'Date':                         '',
+        'Status':                       '',
+        'Subsidiary':                   '',
+        'Memo':                         '',
+        'From Location':                '',
+        'To Location':                  '',
+        'Department':                   '',
+        'Item':                         row['Item'],
+        'Item Description':             row['Item Description'],
+        'Quantity':                     row['Quantity'],
+        'Lot Quantity':                 row['Quantity'],
+        'Lot Code':                     row['Lot Code'] || '',
+        'Shipment ID':                  row['Shipment ID'] || '',
+        'Detail External ID':           row['Lot Code'] ? `${invDetailCounter++}` : '',
+        'Source File':                  row['Source File'],
+        'Source Format':                row['Source Format'],
+      });
+    });
+  }
+
+  const csvContent = [
+    cols.map(escape).join(','),
+    ...finalRows.map(row => cols.map(c => escape(row[c]||'')).join(','))
+  ].join('\r\n');
+
+  // Filename: Transfer Order. [date].[shipment IDs]
+  const shipmentIds = [...new Set(finalRows.map(r => r['External ID']).filter(Boolean))].join('.');
+  const dateStr = new Date().toISOString().slice(0,10);
+  const fileName = `Transfer Order from po_extractor. ${dateStr}.${shipmentIds}.csv`.replace(/[/\\?%*:|"<>]/g, '-');
+
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
+  a.download = fileName;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  log('Transfer Order CSV downloaded: ' + fileName);
+}
+
+// ─── Library loader ───────────────────────────────────────────────
+let libsLoaded = false;
+async function loadLibs() {
+  if (libsLoaded) return;
+  const load = src => new Promise((res,rej) => {
+    const s = document.createElement('script');
+    s.src=src; s.onload=res; s.onerror=rej;
+    document.head.appendChild(s);
+  });
+  await load('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+  await load('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+  libsLoaded = true;
+  log('Libraries loaded: JSZip, SheetJS');
+  log('Libraries loaded: JSZip, PDF.js, SheetJS');
+}
+</script>
+</body>
+</html>
