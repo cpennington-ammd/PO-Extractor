@@ -2101,7 +2101,7 @@ Analyze this PDF and return ONLY a JSON object with this exact structure (no mar
   "shipToState": "ship-to state/province, 2-letter if US",
   "shipToZip": "ship-to postal code",
   "shipToCountry": "2-letter ISO country code e.g. US or GB",
-  "isUK": true or false (true if the buyer/ship-to is in the United Kingdom),
+  "isUK": true or false (set true if the BILLING/IMPORTER address contains UK, United Kingdom, Sheffield, England, or a UK postcode like S14SF. The ship-to address may be in the US — ignore that. Focus on who placed the order),
   "vendor": "the selling company (supplier) name",
   "lineItems": [
     {
