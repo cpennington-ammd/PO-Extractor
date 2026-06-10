@@ -877,7 +877,13 @@ let skuDescriptions = {}; // sku → description, built from pricing + extracted
 // All storage init happens in initApp() below
 
 // ─── Customer name mapping ────────────────────────────────────────
-let customerMapping = { 'Healf': '294767 Healf' }; // default seed
+let customerMapping = {
+  'Healf':                    '294767 Healf',
+  'Fullscript/Natural Partners': '301171 Fullscript Wholesale',
+  'Amrita Nutrition US':      '186633 Amrita - Functional Nutrition Limited',
+  'Amrita Nutrition UK':      '186633 Amrita - Functional Nutrition Limited',
+  'AAFES':                    '275590 AAFES',
+}; // default seed
 
 // ─── Logging ──────────────────────────────────────────────────────
 function log(msg) {
@@ -1068,7 +1074,8 @@ async function loadStoredMapping() {
     const saved = await store.get(MAPPING_KEY);
     if (saved) {
       const stored = JSON.parse(saved);
-      customerMapping = Object.assign({ 'Healf': '294767 Healf' }, stored);
+      // Merge: defaults first, then stored (stored values win for existing keys)
+      customerMapping = Object.assign({ ...customerMapping }, stored);
       console.log('[AMMD] Customer mapping loaded:', customerMapping);
     } else {
       console.log('[AMMD] No saved customer mapping found, using defaults');
