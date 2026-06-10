@@ -707,7 +707,27 @@
 
 <script>
 
-// ─── Step accordion ───────────────────────────────────────────────
+// ─── Adaptive storage ─────────────────────────────────────────────
+// Uses window.storage in Claude sandbox, localStorage elsewhere
+const store = {
+  async get(key) {
+    try {
+      if (window.storage) {
+        const r = await window.storage.get(key);
+        return r ? r.value : null;
+      }
+    } catch(e) {}
+    try { return localStorage.getItem(key); } catch(e) { return null; }
+  },
+  async set(key, value) {
+    try {
+      if (window.storage) { await window.storage.set(key, value); return; }
+    } catch(e) {}
+    try { localStorage.setItem(key, value); } catch(e) {}
+  }
+};
+
+
 function toggleStep(id) {
   const card = document.getElementById(id + 'Card');
   const body = document.getElementById(id + 'Body');
@@ -736,7 +756,7 @@ function updateStep3Status() {
   }
 }
 
-function updateStep1Status(loaded) {
+async function updateStep1Status(loaded) {
   const status   = document.getElementById('step1Status');
   const subtitle = document.getElementById('step1Subtitle');
   const card     = document.getElementById('step1Card');
@@ -746,7 +766,7 @@ function updateStep1Status(loaded) {
     card.classList.add('complete');
     // Show file name + upload date in subtitle
     try {
-      const meta = JSON.parse(localStorage.getItem('ammd_pricing_meta'));
+      const meta = JSON.parse(await store.get('ammd_pricing_meta') || 'null');
       if (meta) {
         subtitle.innerHTML = `<span class="info-line">
           <span class="info-file">📄 ${meta.fileName}</span>
@@ -918,9 +938,9 @@ function wirePricingInput() {
     if (!file) return;
     const text = await file.text();
     parsePricingCSV(text);
-    try { localStorage.setItem(STORAGE_KEY, text); } catch(e) {}
+    await store.set(STORAGE_KEY, text);
     const meta = { fileName: file.name, uploadDate: new Date().toLocaleString() };
-    try { localStorage.setItem(PRICING_META_KEY, JSON.stringify(meta)); } catch(e) {}
+    await store.set(PRICING_META_KEY, JSON.stringify(meta));
     renderPricingMeta(meta);
   });
 }
@@ -936,11 +956,11 @@ function renderPricingMeta(meta) {
 
 async function loadStoredPricing() {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = await store.get(STORAGE_KEY);
     if (saved) parsePricingCSV(saved, true);
   } catch(e) {}
   try {
-    const meta = JSON.parse(localStorage.getItem(PRICING_META_KEY));
+    const meta = JSON.parse(await store.get(PRICING_META_KEY) || 'null');
     if (meta) renderPricingMeta(meta);
   } catch(e) {}
 }
@@ -1045,7 +1065,7 @@ function applyCustomerMapping(name) {
 
 async function loadStoredMapping() {
   try {
-    const saved = localStorage.getItem(MAPPING_KEY);
+    const saved = await store.get(MAPPING_KEY);
     if (saved) {
       const stored = JSON.parse(saved);
       customerMapping = Object.assign({ 'Healf': '294767 Healf' }, stored);
@@ -1059,7 +1079,7 @@ async function loadStoredMapping() {
 
 async function saveMapping() {
   try {
-    localStorage.setItem(MAPPING_KEY, JSON.stringify(customerMapping));
+    await store.set(MAPPING_KEY, JSON.stringify(customerMapping));
     console.log('[AMMD] Customer mapping saved:', customerMapping);
   } catch(e) { console.warn('[AMMD] saveMapping error:', e); }
 }
@@ -1103,14 +1123,14 @@ function addMapping() {
 // ─── Import/Export Report ─────────────────────────────────────────
 async function loadStoredReport() {
   try {
-    const saved = localStorage.getItem(REPORT_KEY);
+    const saved = await store.get(REPORT_KEY);
     if (saved) reportEntries = JSON.parse(saved);
   } catch(e) { reportEntries = []; }
   renderReport();
 }
 
 async function saveReport() {
-  try { localStorage.setItem(REPORT_KEY, JSON.stringify(reportEntries)); } catch(e) {}
+  await store.set(REPORT_KEY, JSON.stringify(reportEntries));
 }
 
 function recordImport(rows) {
@@ -1216,7 +1236,7 @@ function exportReport() {
 // ─── Out of Stock SKUs ────────────────────────────────────────────
 async function loadStoredOOS() {
   try {
-    const saved = localStorage.getItem(OOS_KEY);
+    const saved = await store.get(OOS_KEY);
     if (saved) {
       oosSkus = JSON.parse(saved);
       oosSkus.forEach(o => { skuDescriptions[o.sku] = o.description; });
@@ -1227,7 +1247,7 @@ async function loadStoredOOS() {
 }
 
 async function saveOOS() {
-  try { localStorage.setItem(OOS_KEY, JSON.stringify(oosSkus)); } catch(e) {}
+  await store.set(OOS_KEY, JSON.stringify(oosSkus));
 }
 
 function addOOSSku(sku, description) {
