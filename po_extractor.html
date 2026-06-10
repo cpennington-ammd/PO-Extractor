@@ -707,19 +707,90 @@
 
 <script>
 
-// ─── Adaptive storage ─────────────────────────────────────────────
-// Uses window.storage in Claude sandbox, localStorage elsewhere
+// ─── Google Sheets sync ───────────────────────────────────────────
+const GS_URL = 'https://script.google.com/macros/s/AKfycbx1pWk4TDAF7MJCYw-NR70VVADQazt0FzuajcXcA64weNiFwndzYcSrFlNI8w_Ybu_lWA/exec';
+
+// Map storage keys to sheet names
+const KEY_TO_SHEET = {
+  'ammd_customer_mapping': 'Mappings',
+  'ammd_oos_skus':         'OOS',
+  'ammd_import_report':    'Report',
+  'ammd_pricing_csv':      'Pricing',
+  'ammd_pricing_meta':     'Pricing',
+};
+
+async function gsRead(sheetName) {
+  try {
+    const res = await fetch(`${GS_URL}?action=read&sheet=${encodeURIComponent(sheetName)}`);
+    return await res.json();
+  } catch(e) { console.warn('gsRead failed:', e); return null; }
+}
+
+async function gsWrite(sheetName, data) {
+  try {
+    await fetch(GS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'write', sheet: sheetName, data }),
+    });
+  } catch(e) { console.warn('gsWrite failed:', e); }
+}
+
+// Local-first store: reads from GS for shared keys, falls back to localStorage
 const store = {
   async get(key) {
-    try {
-      if (window.storage) {
-        const r = await window.storage.get(key);
-        return r ? r.value : null;
+    const sheet = KEY_TO_SHEET[key];
+    if (sheet) {
+      const rows = await gsRead(sheet);
+      if (!rows || rows.length === 0) return null;
+
+      if (key === 'ammd_pricing_csv') {
+        // Pricing CSV is stored as raw CSV text in cell A1
+        return rows[0][0] || null;
       }
+      if (key === 'ammd_pricing_meta') {
+        // Meta stored as JSON in cell B1
+        return rows[0][1] || null;
+      }
+      // All other shared keys return full rows as JSON
+      return JSON.stringify(rows);
+    }
+    // Non-shared keys use localStorage / window.storage
+    try {
+      if (window.storage) { const r = await window.storage.get(key); return r ? r.value : null; }
     } catch(e) {}
     try { return localStorage.getItem(key); } catch(e) { return null; }
   },
   async set(key, value) {
+    const sheet = KEY_TO_SHEET[key];
+    if (sheet) {
+      try {
+        if (key === 'ammd_pricing_csv') {
+          // Read current row to preserve meta in B1, write CSV to A1
+          const rows = await gsRead(sheet) || [['', '']];
+          const meta = rows[0] ? rows[0][1] : '';
+          await gsWrite(sheet, [[value, meta]]);
+        } else if (key === 'ammd_pricing_meta') {
+          // Read current row to preserve CSV in A1, write meta to B1
+          const rows = await gsRead(sheet) || [['', '']];
+          const csv = rows[0] ? rows[0][0] : '';
+          await gsWrite(sheet, [[csv, value]]);
+        } else {
+          const parsed = JSON.parse(value);
+          let rows = [];
+          if (key === 'ammd_customer_mapping') {
+            rows = [['Tool Name', 'NetSuite Name'], ...Object.entries(parsed)];
+          } else if (key === 'ammd_oos_skus') {
+            rows = [['SKU', 'Description'], ...parsed.map(o => [o.sku, o.description])];
+          } else if (key === 'ammd_import_report') {
+            rows = [['Customer', 'PO Number', 'Total Amount', 'Date Imported', 'Date Exported'],
+              ...parsed.map(e => [e.customer, e.poNumber, e.totalAmount, e.dateImported, e.dateExported||''])];
+          }
+          await gsWrite(sheet, rows);
+        }
+      } catch(e) { console.warn('gsWrite error:', e); }
+      return;
+    }
+    // Non-shared keys
     try {
       if (window.storage) { await window.storage.set(key, value); return; }
     } catch(e) {}
@@ -845,6 +916,9 @@ const TO_DEFAULTS = {
   'Department':    'Product Ops',
 };
 
+// ─── Default pricing data (pre-loaded) ───────────────────────────
+const DEFAULT_PRICING_CSV = ",,,,,,,,,,\nSKU,Description,MSRP,Fullscript/Natural Partners Price,Kroger/Vitacost Price,Amrita US Price,Amrita UK Price,Rithum/AAFES Price,Healf Price,Shopify Price,Get Healthy Price\nAGLUT-CAP-AMMD,Acetyl-Glutathione,$54.97,,,$23.27,$22.00,$32.98,$20.24,$43.98,$35.73\nGREST-CAP-AMMD,Acid Restore HCL Complete,$29.97,$11.87,,$13.49,$20.00,$17.98,$11.24,$23.98,$19.48\nADRE-SUPP-CAP-AMMD,Adrenal Support ,$46.97,$19.00,$28.18,$20.00,$20.00,$28.18,$17.99,$37.58,$30.53\nBILE-CAP-AMMD,Bile Builder Complete,$39.97,,,$18.00,,$23.98,$16.19,$31.98,$25.98\nBIOFILM-CAP-AMMD,Biofilm Disruptor,$48.97,,,$22.00,,$29.38,$20.24,$39.18,$31.83\nCAND-CAP-AMMD,Candifense ,$44.97,$17.09,$26.98,$19.00,$19.00,$26.98,$15.74,$35.98,$29.23\nCAPR-CAP-AMMD,Caprylic Acid,$31.97,$11.88,$19.18,$15.00,$12.00,$19.18,$13.49,$25.58,$20.78\nCOCO-BIND-CAP-AMMD,Charcoal Binder Complete,$28.97,,,$12.00,,$17.38,$11.24,$23.18,$18.83\nCOL-POW-AMMD,Collagen Protein Type I & III,$49.97,$19.07,$29.98,$22.83,$22.00,$29.98,$20.24,$39.98,$32.48\nENZY-CAP-AMMD,Complete Enzymes Capsules ,$49.97,$19.99,$29.98,$24.45,$19.50,$29.98,$17.99,$39.98,$32.48\nENZY-CHEW-AMMD,Complete Ezymes Chewable ,$40.97,,,$17.50,$17.00,$24.58,$15.74,$32.78,$26.63\nOMEG-CAP-AMMD,Complete Omega-3,$50.97,,$30.58,$28.00,$24.00,$30.58,$20.24,$40.78,$33.13\nCURC-CAP-AMMD,Curcumin Super Soluble ,$50.97,,$30.58,$28.00,$23.50,$30.58,$22.49,$40.78,$33.13\nESTR-CAP-AMMD,EstroProtect,$44.97,,,$21.25,$15.00,$26.98,$13.49,$35.98,$29.23\nRADI-CAP-AMMD,Hair Skin and Nails,$36.97,$12.32,$22.18,$15.50,$14.00,$22.18,$15.74,$29.58,$24.03\nHIST-CAP-AMMD,Histazyme,$44.97,,,$17.99,$18.00,$26.98,$17.99,$35.98,$29.23\nIMMU-POW-AMMD,ImmuneIG,$79.97,,,$35.99,,$47.98,$31.49,$63.98,$51.98\nSYNO-CAP-AMMD,Joint Support Complex,$51.97,,,$22.49,$22.50,$31.18,$22.49,$41.58,$33.78\nLGLU-CAP-AMMD,L-Glutamine Capsules,$31.97,$11.88,$19.18,$13.50,$12.50,$19.18,$13.49,$25.58,$20.78\nLEAK-POW-AMMD,Leaky Gut Revive,$49.97,$18.22,$29.98,$20.65,$19.00,$29.98,$17.99,$39.98,$32.48\nLEAK-STLE-POW-AMMD,Leaky Gut Revive - Strawberry Lemonade ,$49.97,$21.78,$29.98,$20.65,$19.00,$29.98,$17.99,$39.98,$32.48\nCURC-LIQ-WL.V,Liposomal Curcumin ,$31.97,$12.04,$19.18,$14.00,$12.50,$19.18,$13.49,$25.58,$20.78\nVITC-LIQ-WL.V,Liposomal Vitamin C,$25.97,$9.00,$15.58,$10.97,,$15.58,$13.49,$20.78,$16.88\nVITC-LIQ-20-WL.V,Liposomal Vitamin C ,$25.97,$9.00,$15.58,,,,,$20.78,\nLIVE-CAP-AMMD,Liver Support ,$44.97,,$26.98,$18.00,$18.00,$26.98,$17.99,$35.98,$29.23\nMG-CIT-CAP-AMMD,MagMove,$43.97,$9.00,$26.38,$18.00,$18.00,$26.38,$17.99,$35.18,$28.58\nMETH-CAP-AMMD - 60ct,Methylation Support ,$34.97,$13.94,$20.98,$15.20,$11.00,$20.98,$12.59,$27.98,$22.73\nMICR-CAP-AMMD,Microb-Clear ,$54.97,$19.37,$32.98,$22.27,$17.00,$32.98,$15.74,$43.98,$35.73\nNEUR-POW-AMMD,NeuroCalm Mag,$44.97,,,$20.24,,$26.98,$20.24,$35.98,$29.23\nNEUR-CAP-AMMD,NeuroLive ,$45.97,,$27.58,$20.24,$20.00,$27.58,$20.24,$36.78,$29.88\nORG-GRE-POW-AMMD,Organic Greens,$55.97,$22.39,$33.58,$26.00,$23.50,$33.58,$22.49,$44.78,$36.38\nORG-RED-POW-AMMD,Organic Reds ,$55.97,,$33.58,$0.00,$40.00,$33.58,$22.49,$44.78,\nBONE-CAP-AMMD,OsteoDura ,$45.97,,$27.58,$18.00,,$27.58,$17.99,$36.78,$29.88\nPP-CHOC-POW-20-AMMD,Paleo Protein Double Chocolate,$46.97,$19.99,$28.18,$25.74,$23.00,$28.18,$18.89,$37.58,$30.53\nPP-MOCH-POW-20-AMMD,Paleo Protein Mocha Latte,$46.97,,$28.18,$25.74,$23.00,$28.18,$18.89,$37.58,$30.53\nPP-SACA-POW-20-AMMD,Paleo Protein Salted Caramel,$46.97,$19.99,$28.18,$26.86,$24.00,$28.18,$18.89,$37.58,$30.53\nPP-BERRY-POW-20-AMMD,Paleo Protein Strawberries & Cream,$46.97,$19.99,$28.18,$27.98,$25.00,$28.18,$18.89,$37.58,$30.53\nPP-UNFL-POW-20-AMMD,Paleo Protein Unflavored,$46.97,,$28.18,$25.74,$23.00,$28.18,$18.89,$37.58,$30.53\nPP-VAN-POW-20-AMMD,Paleo Protein Vanilla Bean,$46.97,$19.99,$28.18,$25.74,$23.00,$28.18,$18.89,$37.58,$30.53\nPREB-POW-AMMD,Prebiotic Powder Complete,$35.97,,,$15.74,,$21.58,$15.74,$28.78,$23.38\nPRIM-PRO-CAP-AMMD,Primal Earth Probiotic ,$57.97,$20.15,$34.78,$20.88,$19.00,$34.78,$17.99,$46.38,$37.68\nPRO-100-CAP-AMMD,Probiotic 100 Billion Capsules ,$57.97,$21.06,$34.78,$24.54,$22.00,$34.78,$20.24,$46.38,$37.68\nPRO-30-CAP-AMMD,Probiotic 30 Billion Capsules  ,$43.97,$16.88,$26.38,$18.24,,$26.38,$15.74,$35.18,$28.58\nSLEE-CAP-AMMD,Rest and Restore,$36.97,$13.64,$22.18,$15.75,,$22.18,$15.74,$29.58,$24.03\nRRMX-CAP-AMMD,Rest and Restore with Melatonin,$40.97,,$24.58,$17.00,,$24.58,$15.74,$32.78,$26.63\nRESV-CAP-AMMD,Resveratrol,$39.97,,,$17.99,,$23.98,$17.99,$31.98,$25.98\nCOL-COM-POW-AMMD,Spectrum 5 Collagen ,$54.97,,$32.98,$23.79,,$32.98,$22.49,$43.98,$35.73\nMULT-CAP-AMMD,The Myers Way Multivitamin,$49.97,$19.99,$29.98,$21.88,$19.50,$29.98,$20.69,$39.98,$32.48\nVITD-CAP-30-AMMD,\"Vitamin D3/K2 10,000 IU Capsules\",$25.97,$9.10,,$11.15,$7.75,$15.58,$8.99,$20.78,$16.88\nVITD-LIQ-WL.V,Vitamin D3/K2 Liquid,$39.97,$18.34,$23.98,$16.11,$14.50,$23.98,$13.49,$31.98,$25.98\nADAP-CAP-AMMD,ZenAdapt,$50.97,,,$34.50,$34.50,$30.58,$22.49,$40.78,$33.13";
+
 // ─── Format → pricing column map ─────────────────────────────────
 const FORMAT_TO_PRICE_COL = {
   'Fullscript/Natural Partners CSV': 'Fullscript/Natural Partners Price',
@@ -963,11 +1037,19 @@ function renderPricingMeta(meta) {
 async function loadStoredPricing() {
   try {
     const saved = await store.get(STORAGE_KEY);
-    if (saved) parsePricingCSV(saved, true);
-  } catch(e) {}
+    if (saved) {
+      parsePricingCSV(saved, true);
+    } else {
+      parsePricingCSV(DEFAULT_PRICING_CSV, true);
+      log('Pricing loaded from built-in default sheet');
+    }
+  } catch(e) { parsePricingCSV(DEFAULT_PRICING_CSV, true); }
   try {
-    const meta = JSON.parse(await store.get(PRICING_META_KEY) || 'null');
-    if (meta) renderPricingMeta(meta);
+    const metaRaw = await store.get(PRICING_META_KEY);
+    if (metaRaw) {
+      const meta = JSON.parse(metaRaw);
+      if (meta) renderPricingMeta(meta);
+    }
   } catch(e) {}
 }
 
@@ -1073,9 +1155,14 @@ async function loadStoredMapping() {
   try {
     const saved = await store.get(MAPPING_KEY);
     if (saved) {
-      const stored = JSON.parse(saved);
-      // Merge: defaults first, then stored (stored values win for existing keys)
-      customerMapping = Object.assign({ ...customerMapping }, stored);
+      const rows = JSON.parse(saved);
+      // GS format: [[Tool Name, NetSuite Name], [row1...], ...]
+      const dataRows = rows.slice(1).filter(r => r[0] && r[1]);
+      if (dataRows.length > 0) {
+        const stored = {};
+        dataRows.forEach(r => { stored[r[0]] = r[1]; });
+        customerMapping = Object.assign({ ...customerMapping }, stored);
+      }
       console.log('[AMMD] Customer mapping loaded:', customerMapping);
     } else {
       console.log('[AMMD] No saved customer mapping found, using defaults');
@@ -1131,7 +1218,17 @@ function addMapping() {
 async function loadStoredReport() {
   try {
     const saved = await store.get(REPORT_KEY);
-    if (saved) reportEntries = JSON.parse(saved);
+    if (saved) {
+      const rows = JSON.parse(saved);
+      const dataRows = rows.slice(1).filter(r => r[0]);
+      reportEntries = dataRows.map(r => ({
+        customer:     r[0] || '',
+        poNumber:     r[1] || '',
+        totalAmount:  r[2] || '',
+        dateImported: r[3] || '',
+        dateExported: r[4] || '',
+      }));
+    }
   } catch(e) { reportEntries = []; }
   renderReport();
 }
@@ -1245,7 +1342,9 @@ async function loadStoredOOS() {
   try {
     const saved = await store.get(OOS_KEY);
     if (saved) {
-      oosSkus = JSON.parse(saved);
+      const rows = JSON.parse(saved);
+      const dataRows = rows.slice(1).filter(r => r[0]);
+      oosSkus = dataRows.map(r => ({ sku: r[0], description: r[1] || r[0] }));
       oosSkus.forEach(o => { skuDescriptions[o.sku] = o.description; });
     }
   } catch(e) { oosSkus = []; }
