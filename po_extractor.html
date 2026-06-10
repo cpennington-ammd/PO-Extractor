@@ -715,8 +715,6 @@ const KEY_TO_SHEET = {
   'ammd_customer_mapping': 'Mappings',
   'ammd_oos_skus':         'OOS',
   'ammd_import_report':    'Report',
-  'ammd_pricing_csv':      'Pricing',
-  'ammd_pricing_meta':     'Pricing',
 };
 
 async function gsRead(sheetName) {
@@ -764,33 +762,21 @@ const store = {
     const sheet = KEY_TO_SHEET[key];
     if (sheet) {
       try {
-        if (key === 'ammd_pricing_csv') {
-          // Read current row to preserve meta in B1, write CSV to A1
-          const rows = await gsRead(sheet) || [['', '']];
-          const meta = rows[0] ? rows[0][1] : '';
-          await gsWrite(sheet, [[value, meta]]);
-        } else if (key === 'ammd_pricing_meta') {
-          // Read current row to preserve CSV in A1, write meta to B1
-          const rows = await gsRead(sheet) || [['', '']];
-          const csv = rows[0] ? rows[0][0] : '';
-          await gsWrite(sheet, [[csv, value]]);
-        } else {
-          const parsed = JSON.parse(value);
-          let rows = [];
-          if (key === 'ammd_customer_mapping') {
-            rows = [['Tool Name', 'NetSuite Name'], ...Object.entries(parsed)];
-          } else if (key === 'ammd_oos_skus') {
-            rows = [['SKU', 'Description'], ...parsed.map(o => [o.sku, o.description])];
-          } else if (key === 'ammd_import_report') {
-            rows = [['Customer', 'PO Number', 'Total Amount', 'Date Imported', 'Date Exported'],
-              ...parsed.map(e => [e.customer, e.poNumber, e.totalAmount, e.dateImported, e.dateExported||''])];
-          }
-          await gsWrite(sheet, rows);
+        const parsed = JSON.parse(value);
+        let rows = [];
+        if (key === 'ammd_customer_mapping') {
+          rows = [['Tool Name', 'NetSuite Name'], ...Object.entries(parsed)];
+        } else if (key === 'ammd_oos_skus') {
+          rows = [['SKU', 'Description'], ...parsed.map(o => [o.sku, o.description])];
+        } else if (key === 'ammd_import_report') {
+          rows = [['Customer', 'PO Number', 'Total Amount', 'Date Imported', 'Date Exported'],
+            ...parsed.map(e => [e.customer, e.poNumber, e.totalAmount, e.dateImported, e.dateExported||''])];
         }
+        await gsWrite(sheet, rows);
       } catch(e) { console.warn('gsWrite error:', e); }
       return;
     }
-    // Non-shared keys
+    // Non-shared keys (pricing etc) use localStorage / window.storage
     try {
       if (window.storage) { await window.storage.set(key, value); return; }
     } catch(e) {}
@@ -1018,10 +1004,19 @@ function wirePricingInput() {
     if (!file) return;
     const text = await file.text();
     parsePricingCSV(text);
-    await store.set(STORAGE_KEY, text);
     const meta = { fileName: file.name, uploadDate: new Date().toLocaleString() };
-    await store.set(PRICING_META_KEY, JSON.stringify(meta));
     renderPricingMeta(meta);
+    // Save to shared proxy
+    try {
+      await fetch('https://ammd-proxy.onrender.com/pricing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csv: text, meta })
+      });
+    } catch(e) { console.warn('Proxy pricing save failed:', e); }
+    // Also save locally as fallback
+    await store.set(STORAGE_KEY, text);
+    await store.set(PRICING_META_KEY, JSON.stringify(meta));
   });
 }
 
@@ -1035,6 +1030,17 @@ function renderPricingMeta(meta) {
 }
 
 async function loadStoredPricing() {
+  try {
+    // Try to load from shared proxy first
+    const res = await fetch('https://ammd-proxy.onrender.com/pricing');
+    const data = await res.json();
+    if (data.csv) {
+      parsePricingCSV(data.csv, true);
+      if (data.meta) renderPricingMeta(data.meta);
+      return;
+    }
+  } catch(e) { console.warn('Proxy pricing load failed:', e); }
+  // Fall back to localStorage
   try {
     const saved = await store.get(STORAGE_KEY);
     if (saved) {
