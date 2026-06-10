@@ -2115,7 +2115,7 @@ Rules:
 - quantity must be a number
 - If a field is not found, use an empty string or 0`;
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetch('https://ammd-proxy.onrender.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
