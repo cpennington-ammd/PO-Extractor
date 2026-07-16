@@ -592,6 +592,7 @@
               <span class="fmt-tag">Fullscript/NP CSV</span>
               <span class="fmt-tag">AAFES CSV</span>
               <span class="fmt-tag">Amrita US/UK PDF</span>
+              <span class="fmt-tag">iHerb PDF</span>
               <span class="fmt-tag">Healf XLSX</span>
               <span class="fmt-tag">Shopify CSV</span>
               <span class="fmt-tag">Amazon FBA Shipment XLSX</span>
@@ -911,6 +912,7 @@ const FORMAT_TO_PRICE_COL = {
   'AAFES CSV':                       'Rithum/AAFES Price',
   'Amrita US PDF':                   'Amrita US Price',
   'Amrita UK PDF':                   'Amrita UK Price',
+  'iHerb PDF':                       'iHerb Price',
   'Healf XLSX':                      'Healf Price',
   'Shopify Orders Export':           'Shopify Price',
   'Amazon FBA Shipment XLSX':        null,  // no pricing on shipment files
@@ -943,6 +945,7 @@ let customerMapping = {
   'Amrita Nutrition US':      '186633 Amrita - Functional Nutrition Limited',
   'Amrita Nutrition UK':      '186633 Amrita - Functional Nutrition Limited',
   'AAFES':                    '275590 AAFES',
+  'iHerb':                    'iHerb',
 }; // default seed
 
 // ─── Logging ──────────────────────────────────────────────────────
@@ -2113,8 +2116,9 @@ Rules:
 - unitPrice and amount must be numbers (not strings)
 - quantity must be a number
 - If a field is not found, use an empty string or 0
-- SKUs may be split across two lines in the PDF (e.g. "PP-MOCH-POW-\n20-AMMD") — always join them with a hyphen to form the complete SKU (e.g. "PP-MOCH-POW-20-AMMD"). Never drop hyphens when joining split SKUs
-- Use the "Supplier Code" column for SKUs if present, not the internal SKU column`;
+- Use the "Supplier Code" or "SKU" labeled field for the sku — in iHerb POs the SKU appears on a separate line labeled "SKU" under the item description
+- For the vendor field, look for the company name in the header/logo area (e.g. "iHerb", "Amrita Nutrition UK", "Amrita Nutrition")
+- "vendor" should be the company that issued the PO (the buyer), not AMMD`;
 
   const response = await fetch('https://ammd-proxy.onrender.com/v1/messages', {
     method: 'POST',
@@ -2139,10 +2143,44 @@ Rules:
   return JSON.parse(clean);
 }
 
-// Amrita PDF (US & UK detection)
+// PDF parser — handles Amrita US, Amrita UK, and iHerb formats
 async function parseAmritaPDF(file) {
   try {
     const d = await extractPDFWithClaude(file);
+
+    // Detect iHerb
+    const isIHerb = d.vendor && /iherb/i.test(d.vendor);
+
+    if (isIHerb) {
+      log(`  iHerb: PO ${d.poNumber}, ${d.lineItems.length} items`);
+      log(`  Ship To: ${d.shipToName} | ${d.shipToAddress1} | ${d.shipToCity}, ${d.shipToState} ${d.shipToZip} | ${d.shipToCountry}`);
+      return d.lineItems.map((item, i) => ({
+        'External ID':       d.poNumber,
+        'Line ID':           i + 1,
+        'Customer':          'iHerb',
+        'PO Number':         d.poNumber,
+        'PO Date':           toNetSuiteDate(d.poDate),
+        'Ship Date':         toNetSuiteDate(d.shipDate),
+        'Order Status':      ORDER_STATUS,
+        'Item':              item.sku,
+        'Item Description':  item.description,
+        'Quantity':          item.quantity,
+        'Unit':              'EA',
+        'Unit Price':        item.unitPrice,
+        'Amount':            item.amount,
+        'Ship To Name':      d.shipToName,
+        'Ship To Address 1': d.shipToAddress1,
+        'Ship To Address 2': d.shipToAddress2 || '',
+        'Ship To City':      d.shipToCity,
+        'Ship To State':     d.shipToState,
+        'Ship To Zip':       d.shipToZip,
+        'Ship To Country':   d.shipToCountry || 'US',
+        'Source File':       file.name,
+        'Source Format':     'iHerb PDF'
+      }));
+    }
+
+    // Amrita US / UK
     log(`  Amrita: detected ${d.isUK ? 'UK' : 'US'}, PO ${d.poNumber}, ${d.lineItems.length} items`);
     log(`  Ship To: ${d.shipToName} | ${d.shipToAddress1} | ${d.shipToCity}, ${d.shipToState} ${d.shipToZip} | ${d.shipToCountry}`);
     const customer = d.isUK ? 'Amrita Nutrition UK' : 'Amrita Nutrition US';
