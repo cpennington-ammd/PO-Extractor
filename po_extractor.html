@@ -2119,7 +2119,7 @@ Rules:
 - If a field is not found, use an empty string or 0
 - Use the "Supplier Code" or "SKU" labeled field for the sku — in iHerb POs the SKU appears on a separate line labeled "SKU" under the item description
 - For the vendor field, look for the company name in the header/logo area (e.g. "iHerb", "Amrita Nutrition UK", "Amrita Nutrition")
-- "vendor" should be the company that issued the PO (the buyer), not AMMD`;
+- "vendor" should be the company that issued the PO (the buyer), not AMMD. If you see the iHerb logo or "iHerb" anywhere in the document, set vendor to "iHerb"`;
 
   const response = await fetch('https://ammd-proxy.onrender.com/v1/messages', {
     method: 'POST',
@@ -2149,8 +2149,9 @@ async function parseAmritaPDF(file) {
   try {
     const d = await extractPDFWithClaude(file);
 
-    // Detect iHerb
-    const isIHerb = d.vendor && /iherb/i.test(d.vendor);
+    // Detect iHerb — check vendor, customer, PO number format, and ship-to name
+    const rawText = JSON.stringify(d).toLowerCase();
+    const isIHerb = /iherb/.test(rawText) || /^45\d{8}$/.test(d.poNumber);
 
     if (isIHerb) {
       log(`  iHerb: PO ${d.poNumber}, ${d.lineItems.length} items`);
