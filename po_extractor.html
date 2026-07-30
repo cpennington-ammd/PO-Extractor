@@ -946,7 +946,7 @@ let customerMapping = {
   'Amrita Nutrition US':      '186633 Amrita - Functional Nutrition Limited',
   'Amrita Nutrition UK':      '186633 Amrita - Functional Nutrition Limited',
   'AAFES':                    '275590 AAFES',
-  'iHerb':                    'iHerb',
+  'iHerb':                    '300993 iHerb',
 }; // default seed
 
 // ─── Logging ──────────────────────────────────────────────────────
@@ -1838,7 +1838,7 @@ async function downloadCSV() {
       const msrpAmt = disc ? (disc.msrp * qty) : (parseFloat(row['Amount']) || '');
       return Object.assign({}, row, {
         'Customer':    applyCustomerMapping(row['Customer']),
-        'PO Date':     toNetSuiteDate(row['PO Date']),
+        'PO Date':     toNetSuiteDate(new Date().toISOString().slice(0,10)),
         'Ship Date':   toNetSuiteDate(row['Ship Date']),
         'Amount':      disc ? msrpAmt.toFixed(2) : (row['Amount'] || ''),
         'MSRP':        disc ? disc.msrp.toFixed(2) : '',
@@ -1882,7 +1882,7 @@ async function downloadCSV() {
       'Line ID':           '',
       'Customer':          firstRow['Customer'],
       'PO Number':         firstRow['PO Number'],
-      'PO Date':           toNetSuiteDate(firstRow['PO Date']),
+      'PO Date':           toNetSuiteDate(new Date().toISOString().slice(0,10)),
       'Ship Date':         toNetSuiteDate(firstRow['Ship Date']),
       'Order Status':      ORDER_STATUS,
       'Discount Item':     discountAmt ? 'Wholesale Price Adjustment' : '',
@@ -2041,7 +2041,7 @@ async function parseFullscriptCSV(file) {
         'Customer':          header.customer,
         'PO Number':         header.poNumber,
         'PO Date':           header.poDate,
-        'Ship Date':         header.shipDate,
+        'Ship Date':         toNetSuiteDate(header.shipDate),
         'Order Status':      ORDER_STATUS,
         'Item':              sku,
         'Item Description':  desc,
