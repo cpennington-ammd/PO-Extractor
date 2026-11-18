@@ -680,7 +680,12 @@
       </div>
       <div class="map-add-row" style="margin-top:12px;">
         <input class="map-add-input" id="mapFromInput" placeholder="Tool name (e.g. AAFES)">
-        <input class="map-add-input" id="mapToInput" placeholder="NetSuite name (exact)">
+        <div style="position:relative;flex:1;">
+          <input class="map-add-input" id="mapToInput" placeholder="Search NetSuite name…" autocomplete="off" style="width:100%;box-sizing:border-box;"
+            oninput="filterNSDropdown()" onfocus="showNSDropdown()" onblur="setTimeout(hideNSDropdown,200)">
+          <div id="nsDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:220px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:6px;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,.12);">
+          </div>
+        </div>
         <button class="map-add-btn" onclick="addMapping()">+ Add</button>
       </div>
     </div>
@@ -1211,6 +1216,55 @@ function deleteMapping(from) {
   delete customerMapping[from];
   saveMapping();
   renderMappingTable();
+}
+
+// ─── NetSuite Customer List (from WholesaleRevenuebyCustomer export) ───────
+const NS_CUSTOMERS = [
+  '142789 Gina Lascano','159844 Larry Satterfield','161374 Emerson Ecologics LLC',
+  '178744 Lela Mace','186633 Amrita - Functional Nutrition Limited',
+  '204187 FullScript Wholesale','216396 HEB #061 - CENTRAL MARKET',
+  '220541 Tony L Hicks','225637 HEB #545 - Central Market',
+  '230186 Well Kept','236603 kyrsten hempstead','250611 Vitacost',
+  '256475 Deonn Hayes','259003 Get Healthy','260041 Stephen Watton',
+  '261142 Jessica Pawlicki','261916 Ruby Buchanan','266116 Keri Munson',
+  '266868 CHERYL ESTES','271899 Donna Grandi','275590 AAFES',
+  '276945 Anne Weeks','277460 Melissa Yanez','282022 Patrick Pisenti',
+  '284678 Trang Nham','287131 Ellie Anderson','287433 Stephanie Mack',
+  '287776 Tammy Yanders','289868 Gareth Meyer','291024 Influencer / NonSales Orders',
+  '292114 Shastin, KAUAI JUICE CO','293827 LaDonna Young','293829 GOrganic EATS',
+  '293984 Carla Fortner','294739 PIA MAFFEI','294767 Healf',
+  '294902 Mandy Loughlin','295064 Lauren Doussan','296404 Anna Smith',
+  '297342 Keri Munson','297351 Waqas Ahmad','297526 Eating, Elevated. - Emma Garcia',
+  '299001 Marissa Carroll','299428 Scott Chmielewski','299544 Ashley Wise',
+  '300759 Adam Rabinowitz','300916 Erin Michalk','300993 iHerb',
+  '301171 Fullscript Wholesale','301389 Kami Wast','301420 Maavee',
+  '302044 Ralph Fontanez','302460 HRo Photo','302461 Jennifer Cabela',
+  '302888 Elisha Mullin','303225 Joseph Ramos','304108 Beata Jadovitz'
+];
+
+function showNSDropdown() {
+  filterNSDropdown();
+  document.getElementById('nsDropdown').style.display = 'block';
+}
+function hideNSDropdown() {
+  document.getElementById('nsDropdown').style.display = 'none';
+}
+function filterNSDropdown() {
+  const q = document.getElementById('mapToInput').value.toLowerCase();
+  const dd = document.getElementById('nsDropdown');
+  const matches = NS_CUSTOMERS.filter(n => n.toLowerCase().includes(q));
+  if (!matches.length) { dd.style.display='none'; return; }
+  dd.style.display = 'block';
+  dd.innerHTML = matches.slice(0,50).map(n =>
+    `<div style="padding:7px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);"
+       onmousedown="selectNSCustomer('${n.replace(/'/,"\\'")}')"
+       onmouseover="this.style.background='var(--accent-bg)'"
+       onmouseout="this.style.background=''">${n}</div>`
+  ).join('');
+}
+function selectNSCustomer(name) {
+  document.getElementById('mapToInput').value = name;
+  hideNSDropdown();
 }
 
 function addMapping() {
@@ -2384,66 +2438,96 @@ async function parseShopifyCSV(file) {
   const headers = parseRow(lines[0]);
   const h = k => headers.findIndex(x=>x===k);
 
-  const iName     = h('Name');
-  const iCreated  = h('Created at');
-  const iShipName = h('Shipping Name');
-  const iShipAddr = h('Shipping Address1');
+  const iName      = h('Name');
+  const iCreated   = h('Created at');
+  const iShipName  = h('Shipping Name');
+  const iShipAddr  = h('Shipping Address1');
   const iShipAddr2 = h('Shipping Address2');
-  const iShipCity = h('Shipping City');
-  const iShipProv = h('Shipping Province');
-  const iShipZip  = h('Shipping Zip');
+  const iShipCo    = h('Shipping Company');
+  const iShipCity  = h('Shipping City');
+  const iShipProv  = h('Shipping Province');
+  const iShipZip   = h('Shipping Zip');
   const iShipCntry = h('Shipping Country');
-  const iSKU      = h('Lineitem sku');
-  const iQty      = h('Lineitem quantity');
-  const iPrice    = h('Lineitem price');
-  const iItemName = h('Lineitem name');
+  const iBillCo    = h('Billing Company');
+  const iSKU       = h('Lineitem sku');
+  const iQty       = h('Lineitem quantity');
+  const iPrice     = h('Lineitem price');
+  const iItemName  = h('Lineitem name');
 
-  const rows=[];
-  const orderContext={};
+  // Group all line items by order number
+  const orders = {}; // keyed by order number
+  const orderContext = {};
 
   for (let i=1; i<lines.length; i++) {
     const cols = parseRow(lines[i]);
     const name = cols[iName];
     if (name) {
-      orderContext.name     = name.replace(/^#/,'');
-      orderContext.created  = (cols[iCreated]||'').split(' ')[0];
-      orderContext.shipName = cols[iShipName]||'';
-      orderContext.shipAddr = cols[iShipAddr]||'';
-      orderContext.shipAddr2 = cols[iShipAddr2]||'';
-      orderContext.shipCity = cols[iShipCity]||'';
-      orderContext.shipProv = cols[iShipProv]||'';
-      orderContext.shipZip   = cols[iShipZip]||'';
-      orderContext.shipCntry = cols[iShipCntry]||'US';
+      const orderNum = name.replace(/^#/,'');
+      orderContext[orderNum] = {
+        orderNum,
+        created:   (cols[iCreated]||'').split(' ')[0],
+        shipName:  cols[iShipName]||'',
+        shipAddr:  cols[iShipAddr]||'',
+        shipAddr2: cols[iShipAddr2]||'',
+        shipCo:    cols[iShipCo]||'',
+        shipCity:  cols[iShipCity]||'',
+        shipProv:  cols[iShipProv]||'',
+        shipZip:   cols[iShipZip]||'',
+        shipCntry: cols[iShipCntry]||'US',
+        // Use Billing Company as customer identifier, fall back to Shipping Name
+        customerRaw: (cols[iBillCo]||cols[iShipName]||'').trim(),
+      };
+      if (!orders[orderNum]) orders[orderNum] = [];
     }
-    const sku = cols[iSKU];
-    const qty = parseInt(cols[iQty]);
-    const price = parseFloat(cols[iPrice]);
-    if (!sku||!qty) continue;
 
-    rows.push({
-      'External ID':       `SHOPIFY-${orderContext.name}`,
-      'Line ID':           rows.length+1,
-      'Customer':          'Shopify',
-      'PO Number':         orderContext.name||'',
-      'PO Date':           orderContext.created||'',
-      'Ship Date':         '',
-      'Order Status':      ORDER_STATUS,
-      'Item':              sku,
-      'Item Description':  cols[iItemName]||sku,
-      'Quantity':          qty,
-      'Unit':              'EA',
-      'Unit Price':        isNaN(price)?'':price,
-      'Amount':            (!isNaN(price)&&qty)?price*qty:'',
-      'Ship To Name':      orderContext.shipName,
-      'Ship To Address 1': orderContext.shipAddr,
-      'Ship To Address 2': orderContext.shipAddr2 || '',
-      'Ship To City':      orderContext.shipCity,
-      'Ship To State':     orderContext.shipProv,
-      'Ship To Zip':       orderContext.shipZip,
-      'Ship To Country':   orderContext.shipCntry,
-      'Source File':       file.name,
-      'Source Format':     'Shopify Orders Export'
-    });
+    const sku  = cols[iSKU];
+    const qty  = parseInt(cols[iQty]);
+    const price = parseFloat(cols[iPrice]);
+    if (!sku || !qty) continue;
+
+    // Find which order this line belongs to — use last seen order context
+    const currentOrder = Object.keys(orderContext).slice(-1)[0];
+    if (!currentOrder) continue;
+    if (!orders[currentOrder]) orders[currentOrder] = [];
+    orders[currentOrder].push({ sku, qty, price, itemName: cols[iItemName]||sku });
+  }
+
+  // Build NetSuite rows — one External ID per order
+  const rows = [];
+  for (const [orderNum, ctx] of Object.entries(orderContext)) {
+    const items = orders[orderNum] || [];
+    if (!items.length) continue;
+
+    // Map customer name via customerMapping
+    const mappedCustomer = customerMapping[ctx.customerRaw] || customerMapping['Shopify'] || ctx.customerRaw || 'Shopify';
+
+    let lineId = 1;
+    for (const item of items) {
+      rows.push({
+        'External ID':       `SHOPIFY-${orderNum}`,
+        'Line ID':           lineId++,
+        'Customer':          mappedCustomer,
+        'PO Number':         orderNum,
+        'PO Date':           ctx.created||'',
+        'Ship Date':         '',
+        'Order Status':      ORDER_STATUS,
+        'Item':              item.sku,
+        'Item Description':  item.itemName,
+        'Quantity':          item.qty,
+        'Unit':              'EA',
+        'Unit Price':        isNaN(item.price)?'':item.price,
+        'Amount':            (!isNaN(item.price)&&item.qty)?item.price*item.qty:'',
+        'Ship To Name':      ctx.shipName,
+        'Ship To Address 1': ctx.shipAddr,
+        'Ship To Address 2': ctx.shipAddr2||ctx.shipCo||'',
+        'Ship To City':      ctx.shipCity,
+        'Ship To State':     ctx.shipProv,
+        'Ship To Zip':       ctx.shipZip,
+        'Ship To Country':   ctx.shipCntry,
+        'Source File':       file.name,
+        'Source Format':     'Shopify Orders Export'
+      });
+    }
   }
   return rows;
 }
