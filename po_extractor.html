@@ -1243,28 +1243,37 @@ const NS_CUSTOMERS = [
 ];
 
 function showNSDropdown() {
-  filterNSDropdown();
-  document.getElementById('nsDropdown').style.display = 'block';
+  renderNSDropdown();
 }
 function hideNSDropdown() {
-  document.getElementById('nsDropdown').style.display = 'none';
+  const dd = document.getElementById('nsDropdown');
+  if (dd) dd.style.display = 'none';
 }
 function filterNSDropdown() {
-  const q = document.getElementById('mapToInput').value.toLowerCase();
-  const dd = document.getElementById('nsDropdown');
-  const matches = NS_CUSTOMERS.filter(n => n.toLowerCase().includes(q));
-  if (!matches.length) { dd.style.display='none'; return; }
-  dd.style.display = 'block';
-  dd.innerHTML = matches.slice(0,50).map(n =>
-    `<div style="padding:7px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);"
-       onmousedown="selectNSCustomer('${n.replace(/'/,"\\'")}')"
-       onmouseover="this.style.background='var(--accent-bg)'"
-       onmouseout="this.style.background=''">${n}</div>`
-  ).join('');
+  renderNSDropdown();
 }
-function selectNSCustomer(name) {
-  document.getElementById('mapToInput').value = name;
-  hideNSDropdown();
+function renderNSDropdown() {
+  const input = document.getElementById('mapToInput');
+  const dd = document.getElementById('nsDropdown');
+  if (!dd || !input) return;
+  const q = input.value.toLowerCase();
+  const matches = NS_CUSTOMERS.filter(n => n.toLowerCase().includes(q));
+  if (!matches.length) { dd.style.display = 'none'; return; }
+  dd.innerHTML = '';
+  matches.slice(0, 60).forEach(name => {
+    const item = document.createElement('div');
+    item.textContent = name;
+    item.style.cssText = 'padding:7px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #e2e8f0;';
+    item.addEventListener('mouseover', () => item.style.background = '#eff6ff');
+    item.addEventListener('mouseout',  () => item.style.background = '');
+    item.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // prevent blur from firing first
+      input.value = name;
+      dd.style.display = 'none';
+    });
+    dd.appendChild(item);
+  });
+  dd.style.display = 'block';
 }
 
 function addMapping() {
